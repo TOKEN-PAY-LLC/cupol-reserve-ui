@@ -429,6 +429,7 @@ class NodeWizardModelTest {
         val opened = mutableListOf<String>()
         override val appVersion = "test"
         override val coreVersion = "test"
+        override val clientRepo = "test"
         override val systemProxySupported = false
         override val fullTunnelSupported = false
         override val elevated = false

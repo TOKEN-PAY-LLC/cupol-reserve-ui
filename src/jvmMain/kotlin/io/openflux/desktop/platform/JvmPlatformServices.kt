@@ -42,6 +42,7 @@ class JvmPlatformServices(
     private val random = SecureRandom()
 
     override val coreVersion: String get() = coreVersionProvider()
+    override val clientRepo: String get() = RELEASE_REPO
     override val systemProxySupported: Boolean = os.contains("win")
     override val fullTunnelSupported: Boolean = os.contains("win")
     override val elevated: Boolean get() = WindowsElevation.elevated
@@ -146,7 +147,7 @@ class JvmPlatformServices(
 
     companion object {
         /** Where the desktop releases are published, tagged v1.2.3. */
-        const val RELEASE_REPO = "meepo161/OpenFluxClient"
+        const val RELEASE_REPO = "p1neappleXpress/OpenFluxDesktop"
         const val DESKTOP_TAG_PREFIX = "v"
     }
 }

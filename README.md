@@ -39,7 +39,11 @@ preserved as extracted from that repository. **Huge thanks to
 
 It talks to the [OpenFlux](https://github.com/p1neappleXpress/OpenFlux) core
 (the tunnel/transports/protocol) through the service interfaces in
-`commonMain`, implemented per platform in the consuming app.
+`commonMain`, implemented per platform in the consuming app. That core's own
+`openflux://` links and QR codes, and its cups.online transport, were
+contributed by [@damnurmum](https://github.com/damnurmum) (of
+[OpenFlux-Android](https://github.com/damnurmum/OpenFlux-Android)) — this
+module's share screens and QR scanning build on that work. Thank you!
 
 ## License
 

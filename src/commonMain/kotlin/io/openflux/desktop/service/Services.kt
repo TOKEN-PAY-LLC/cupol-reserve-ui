@@ -66,6 +66,8 @@ interface PlatformServices {
     val kind: PlatformKind get() = PlatformKind.Desktop
     val appVersion: String
     val coreVersion: String
+    /** Where this app's own releases are published, e.g. "p1neappleXpress/OpenFluxDesktop". */
+    val clientRepo: String
     /** Whether this OS can point its system proxy at OpenFlux. */
     val systemProxySupported: Boolean
     /** Whether the full tunnel (all traffic through a Wintun adapter) runs on this OS. */
