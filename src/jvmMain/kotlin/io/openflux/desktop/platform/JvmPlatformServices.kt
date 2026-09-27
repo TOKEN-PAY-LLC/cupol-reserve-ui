@@ -45,6 +45,7 @@ class JvmPlatformServices(
     override val clientRepo: String get() = RELEASE_REPO
     override val systemProxySupported: Boolean = os.contains("win")
     override val fullTunnelSupported: Boolean = os.contains("win")
+    override val exitL3Supported: Boolean = os.contains("win")
     override val elevated: Boolean get() = WindowsElevation.elevated
 
     override fun restartElevated(): Boolean {

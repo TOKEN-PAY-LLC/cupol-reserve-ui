@@ -91,6 +91,14 @@ class CoreConfigTest {
     }
 
     @Test
+    fun sessionExitForwardsAtL3WhenAsked() {
+        val settings = AppSettings(mode = ConnectionMode.Exit, exitL3 = true)
+        val conf = CoreConfig.build(session, settings, paths).conf!!
+        assertTrue("Mode = l3" in conf)
+        assertFalse("Mode = l4" in conf)
+    }
+
+    @Test
     fun classicUsesFlags() {
         val classic = Profile(id = "c", name = "Old", transport = TransportType.YANDEX, value = "https://disk.yandex.ru/i/x")
         val launch = CoreConfig.build(classic, AppSettings(), paths.copy(keyFile = null))

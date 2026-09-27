@@ -75,6 +75,8 @@ interface PlatformServices {
     val fullTunnelSupported: Boolean
     /** Whether OpenFlux runs with administrator rights, which the full tunnel needs. */
     val elevated: Boolean
+    /** Whether an exit node can forward packets at L3 here (Windows, through WinDivert). */
+    val exitL3Supported: Boolean get() = false
 
     /** Starts OpenFlux again as administrator (UAC) and exits this copy; false if that did not happen. */
     fun restartElevated(): Boolean

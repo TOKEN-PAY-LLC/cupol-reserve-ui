@@ -63,6 +63,12 @@ data class AppSettings(
     val exitShareHost: String = "",
     /** Exit mode: TCP port for the direct transport. */
     val exitDirectPort: Int = 8445,
+    /**
+     * Exit mode: forward packets at L3 (the core's --mode=l3, WinDivert on
+     * Windows) instead of re-dialing every TCP stream through gVisor (l4).
+     * Needs administrator rights.
+     */
+    val exitL3: Boolean = false,
     /** Set while OpenFlux has changed the Windows proxy; restored on exit or next start. */
     val savedSystemProxy: SavedSystemProxy? = null,
     val sidebarCollapsed: Boolean = false,

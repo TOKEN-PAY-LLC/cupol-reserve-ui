@@ -140,6 +140,7 @@ class CoreConnectionService(
                     "(./gradlew соберёт ядро сам) или укажите файл ядра в настройках",
             )
             if (current.fullTunnel && current.mode == ConnectionMode.Client) checkFullTunnel(core)
+            if (current.exitL3 && current.mode == ConnectionMode.Exit) checkExitL3(core)
             val runtime = AppDirs.runtime
             val tag = profile.id.take(8)
             val keyFile = if (profile.secret.isNotEmpty()) File(runtime, "key-$tag").also {
@@ -195,6 +196,19 @@ class CoreConnectionService(
         }
         check(File(core.parentFile, "wintun.dll").isFile) {
             "Рядом с ядром нет wintun.dll (${core.parentFile}): он нужен для режима «Весь трафик», см. scripts/build-core.sh"
+        }
+    }
+
+    /** What the core's WinDivert L3 exit needs, said before it fails on its own. */
+    private fun checkExitL3(core: File) {
+        check(isWindows) { "Пересылка L3 для выходной ноды пока есть только в Windows" }
+        check(WindowsElevation.elevated) {
+            "Пересылке L3 нужны права администратора: перезапустите OpenFlux от имени администратора (кнопка на главной)"
+        }
+        for (name in listOf("WinDivert.dll", "WinDivert64.sys")) {
+            check(File(core.parentFile, name).isFile) {
+                "Рядом с ядром нет $name (${core.parentFile}): он нужен пересылке L3"
+            }
         }
     }
 

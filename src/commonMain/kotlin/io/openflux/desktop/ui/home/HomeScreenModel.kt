@@ -42,6 +42,12 @@ class HomeScreenModel(private val container: AppContainer) : ScreenModel {
         if (state.isActive) state.profile?.let(connection::connect)
     }
 
+    fun setExitL3(enabled: Boolean) {
+        settings.update { it.copy(exitL3 = enabled) }
+        val state = connection.state.value
+        if (state.isActive) state.profile?.let(connection::connect)
+    }
+
     fun restartElevated(): Boolean = container.platform.restartElevated()
 
     fun copy(text: String) = container.platform.setClipboardText(text)

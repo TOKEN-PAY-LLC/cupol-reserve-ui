@@ -441,6 +441,30 @@ private fun DetailsColumn(model: HomeScreenModel, selected: Profile?, state: Con
             }
         }
 
+        if (exitMode && container.platform.exitL3Supported) {
+            AppCard(padding = AppTheme.spacing.s) {
+                SwitchRow(
+                    title = "Пересылка пакетов L3",
+                    description = "Быстрее: пакеты клиентов уходят в интернет как есть, без пересборки каждого TCP-соединения; " +
+                        "работают ping и любой UDP. Через WinDivert, нужны права администратора.",
+                    checked = settings.exitL3,
+                    onCheckedChange = model::setExitL3,
+                )
+                if (settings.exitL3 && !container.platform.elevated) {
+                    Banner(
+                        "OpenFlux запущен без прав администратора, а они нужны этому режиму.",
+                        Tone.Warning,
+                        modifier = Modifier.padding(AppTheme.spacing.s),
+                        action = {
+                            TextAction("Перезапустить от имени администратора", {
+                                if (!model.restartElevated()) toaster.show("Не удалось перезапустить: разрешите запуск в окне Windows", Tone.Warning)
+                            })
+                        },
+                    )
+                }
+            }
+        }
+
         if (!exitMode && !settings.fullTunnel && container.platform.systemProxySupported) {
             AppCard(padding = AppTheme.spacing.s) {
                 SwitchRow(

@@ -41,7 +41,7 @@ object CoreConfig {
             appendLine("[Interface]")
             if (exit) {
                 appendLine("Role = exit")
-                appendLine("Mode = l4")
+                appendLine(if (settings.exitL3) "Mode = l3" else "Mode = l4")
             } else if (settings.fullTunnel) {
                 appendLine("Role = client")
                 appendLine("Inbound = tun")
