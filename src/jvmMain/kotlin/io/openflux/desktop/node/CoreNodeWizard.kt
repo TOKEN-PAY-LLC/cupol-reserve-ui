@@ -5,6 +5,7 @@ import io.openflux.desktop.model.LogLevel
 import io.openflux.desktop.model.LogLine
 import io.openflux.desktop.model.NewChannel
 import io.openflux.desktop.model.NodePlan
+import io.openflux.desktop.model.NodeTransport
 import io.openflux.desktop.model.NodeWizardException
 import io.openflux.desktop.model.ServerProbe
 import io.openflux.desktop.model.SshTarget
@@ -20,6 +21,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.boolean
@@ -72,21 +74,31 @@ class CoreNodeWizard(
         return NewChannel(reply.string("channel"), reply.string("key"))
     }
 
-    override suspend fun plan(channel: String, withCookies: Boolean): NodePlan {
-        val reply = call("plan", "channel=$channel withCookies=$withCookies") {
+    override suspend fun plan(channel: String, transports: List<NodeTransport>, withCookies: Boolean, autoUpdate: Boolean): NodePlan {
+        val reply = call("plan", "channel=$channel ${transports.names()} withCookies=$withCookies autoUpdate=$autoUpdate") {
             put("channel", channel)
             put("channelPort", 0)
+            put("transports", transports.json())
             put("withCookies", withCookies)
+            put("autoUpdate", autoUpdate)
         }
         return json.decodeFromJsonElement(NodePlan.serializer(), reply.getValue("plan"))
     }
 
-    override suspend fun apply(channel: NewChannel, documentUrl: String, port: Int, sudoPassword: String, cookieHeader: String) {
-        call("apply", "channel=${channel.id} port=$port") {
+    override suspend fun apply(
+        channel: NewChannel,
+        transports: List<NodeTransport>,
+        port: Int,
+        autoUpdate: Boolean,
+        sudoPassword: String,
+        cookieHeader: String,
+    ) {
+        call("apply", "channel=${channel.id} ${transports.names()} port=$port autoUpdate=$autoUpdate") {
             put("channel", channel.id)
             put("key", channel.key)
-            put("documentUrl", documentUrl)
+            put("transports", transports.json())
             put("channelPort", port)
+            put("autoUpdate", autoUpdate)
             put("sudoPassword", sudoPassword)
             put("cookies", cookieHeader)
         }
@@ -103,14 +115,21 @@ class CoreNodeWizard(
         call("checkDocument") { put("documentUrl", documentUrl) }
     }
 
-    override suspend fun shareLink(name: String, documentUrl: String, key: String, host: String, port: Int): String =
-        call("shareLink", "$host:$port") {
+    override suspend fun createCupsRooms(): String = call("createRooms") {}.string("rooms")
+
+    override suspend fun shareLink(name: String, key: String, host: String, port: Int, transports: List<NodeTransport>): String =
+        call("shareLink", "$host:$port ${transports.names()}") {
             put("name", name)
-            put("documentUrl", documentUrl)
             put("key", key)
             put("host", host)
             put("channelPort", port)
+            put("transports", transports.json())
         }.string("link")
+
+    private fun List<NodeTransport>.json() = json.encodeToJsonElement(ListSerializer(NodeTransport.serializer()), this)
+
+    /** For the log: the types only, links and rooms stay out. */
+    private fun List<NodeTransport>.names() = "transports=" + joinToString(",") { it.type }.ifEmpty { "direct" }
 
     override suspend fun resolve(host: String): Set<String> = withContext(Dispatchers.IO) {
         runCatching { InetAddress.getAllByName(host).mapNotNull { it.hostAddress }.toSet() }

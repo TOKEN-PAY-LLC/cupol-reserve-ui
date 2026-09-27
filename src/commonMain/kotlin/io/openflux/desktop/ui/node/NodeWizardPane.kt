@@ -43,6 +43,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import io.openflux.desktop.model.NodeTransports
+import io.openflux.desktop.model.TransportType
 import io.openflux.desktop.service.LocalAppContainer
 import io.openflux.desktop.ui.LocalBrowserViews
 import io.openflux.desktop.ui.LocalScrollbars
@@ -60,6 +62,7 @@ import io.openflux.desktop.ui.components.LocalToaster
 import io.openflux.desktop.ui.components.QrCode
 import io.openflux.desktop.ui.components.SectionLabel
 import io.openflux.desktop.ui.components.Segmented
+import io.openflux.desktop.ui.components.SwitchRow
 import io.openflux.desktop.ui.components.TextAction
 import io.openflux.desktop.ui.components.Tone
 import io.openflux.desktop.ui.components.windowSize
@@ -180,7 +183,7 @@ fun NodeWizardPane(model: NodeWizardModel, onClose: () -> Unit, onSaved: (String
 private fun Header(model: NodeWizardModel, onClose: () -> Unit) {
     val (title, subtitle) = when (model.step) {
         WizardStep.Server -> "Своя нода" to "Сервер (VDS) с Linux и systemd: Debian, Ubuntu и похожие."
-        WizardStep.Document -> "Документ канала" to "Через этот документ Яндекса устройство и нода обмениваются зашифрованным трафиком."
+        WizardStep.Document -> "Транспорты канала" to "Через что устройство и нода будут обмениваться зашифрованным трафиком."
         WizardStep.Plan -> "Будут изменения" to "На сервере будет сделано только это."
         WizardStep.Verify -> "Проверка канала" to "Подключаюсь к новой ноде и открываю сайт через неё."
         WizardStep.Done -> "Нода готова" to if (model.verifiedIp.isEmpty()) "Канал установлен, но проверка не завершена."
@@ -282,9 +285,7 @@ private fun ColumnScope.ServerStep(model: NodeWizardModel) {
 @Composable
 private fun ColumnScope.DocumentStep(model: NodeWizardModel) {
     val idle = model.busy == null
-    val page by model.documentPage.collectAsState()
-    val progress = model.documentProgress
-    val creating = progress != null
+    val creating = model.documentProgress != null
     model.probe?.let { probe ->
         AppCard(padding = 0.dp) {
             KeyValueRow("Сервер", "${model.user.trim()}@${model.host.trim()}")
@@ -299,11 +300,79 @@ private fun ColumnScope.DocumentStep(model: NodeWizardModel) {
     }
     AppTextField(model.name, { model.name = it }, label = "Название профиля", enabled = idle)
     model.channel?.let { Note("Канал: ${it.id}. Для него создан отдельный ключ шифрования, его знают только это устройство и нода.") }
+
+    Spacer(Modifier.height(AppTheme.spacing.xl))
+    SectionLabel("Транспорты")
+    Note(
+        "Можно выбрать несколько: если один перестанет работать, устройство перейдёт на следующий. " +
+            "Прямое подключение к серверу (Direct) есть всегда: это резерв и через него идёт проверка.",
+    )
+    Spacer(Modifier.height(AppTheme.spacing.s))
+    val switchable = idle && !creating
+    AppCard(padding = 0.dp) {
+        SwitchRow(
+            "Яндекс Документ (Volga)",
+            "Документ на вашем Яндекс Диске: мастер создаст его сам или возьмёт ваш.",
+            model.useVolga, { model.useVolga = it }, enabled = switchable,
+        )
+        HorizontalRule()
+        SwitchRow(
+            "Mail.ru Документы",
+            "Публичная ссылка на ваш документ в Облаке Mail.ru с правом редактирования.",
+            model.useMailru, { model.useMailru = it }, enabled = switchable,
+        )
+        HorizontalRule()
+        SwitchRow(
+            "Cups.online",
+            "Комнаты мастер создаст сам, вводить ничего не нужно.",
+            model.useCups, { model.useCups = it }, enabled = switchable,
+        )
+        HorizontalRule()
+        SwitchRow("Direct", "Прямое TCP-подключение к серверу, всегда включено.", checked = true, onCheckedChange = {}, enabled = false)
+    }
+
+    if (model.useMailru) {
+        Spacer(Modifier.height(AppTheme.spacing.l))
+        SectionLabel("Документ Mail.ru")
+        Spacer(Modifier.height(AppTheme.spacing.s))
+        AppTextField(model.mailruInput, { model.mailruInput = it.trim() }, placeholder = "https://cloud.mail.ru/public/…",
+            monospace = true, enabled = idle, helper = "Облако Mail.ru → документ → «Поделиться» → доступ по ссылке с редактированием")
+    }
+
+    if (model.useVolga) {
+        Spacer(Modifier.height(AppTheme.spacing.l))
+        VolgaDocument(model)
+    }
+
+    if (!model.useVolga || model.documentUrl.isNotEmpty()) {
+        Actions {
+            AppButton(if (idle) "Далее" else "Подождите…", model::next, enabled = idle)
+        }
+    }
+}
+
+/** The Yandex document: made in the built-in browser, or the user's own. */
+@Composable
+private fun ColumnScope.VolgaDocument(model: NodeWizardModel) {
+    val idle = model.busy == null
+    val page by model.documentPage.collectAsState()
+    val progress = model.documentProgress
+    SectionLabel("Документ Яндекса")
+    if (model.documentUrl.isNotEmpty()) {
+        Spacer(Modifier.height(AppTheme.spacing.s))
+        Banner("Документ готов: ${model.documentUrl}", Tone.Success, icon = Icons.Rounded.CheckCircle)
+    }
     Actions {
-        if (creating) {
+        if (progress != null) {
             AppButton("Отменить вход в Яндекс", model::cancelDocument, style = ButtonStyle.Secondary)
         } else {
-            AppButton("Войти в Яндекс и создать документ", model::createDocument, leadingResource = AppIcons.Yandex, enabled = idle)
+            AppButton(
+                if (model.documentUrl.isEmpty()) "Войти в Яндекс и создать документ" else "Создать другой документ",
+                model::createDocument,
+                leadingResource = AppIcons.Yandex,
+                style = if (model.documentUrl.isEmpty()) ButtonStyle.Primary else ButtonStyle.Secondary,
+                enabled = idle,
+            )
         }
     }
     if (progress != null) {
@@ -325,8 +394,8 @@ private fun ColumnScope.DocumentStep(model: NodeWizardModel) {
                 "с доступом «Редактирование» по ссылке. После этого браузер забывает вход, остаются только cookies для ноды.",
         )
     }
-    Spacer(Modifier.height(AppTheme.spacing.xl))
-    SectionLabel("Или свой пустой документ")
+    Spacer(Modifier.height(AppTheme.spacing.l))
+    Text("Или свой пустой документ", style = AppTheme.typography.bodyStrong, color = AppTheme.colors.text)
     Spacer(Modifier.height(AppTheme.spacing.s))
     AppTextField(model.documentInput, { model.documentInput = it.trim() }, placeholder = "https://disk.yandex.ru/edit/d/…",
         monospace = true, enabled = idle, helper = "Ссылка с доступом «Редактирование» из «Поделиться»")
@@ -357,10 +426,23 @@ private fun ColumnScope.PlanStep(model: NodeWizardModel) {
         HorizontalRule()
         KeyValueRow("Порт резервного канала", plan.port.toString())
         HorizontalRule()
-        KeyValueRow("Документ", model.documentUrl)
+        KeyValueRow("Транспорты", NodeTransports.describe(model.transportTypes))
+        if (model.transportTypes.contains(TransportType.VYANDEX)) {
+            HorizontalRule()
+            KeyValueRow("Документ Яндекса", model.documentUrl)
+        }
     }
     val keep = if (plan.untouched.isNotEmpty()) "Каналы, которые уже есть на сервере, не изменятся: ${plan.untouched.joinToString()}. " else ""
     Note(keep + "Остальные программы на сервере (Docker, VPN, панели) мастер не трогает.")
+    Spacer(Modifier.height(AppTheme.spacing.m))
+    AppCard(padding = 0.dp) {
+        SwitchRow(
+            "Автообновление ядра",
+            "Раз в 6 часов сервер проверяет новые релизы ноды на GitHub, сверяет хеши и обновляется сам. " +
+                "Если канал на новом ядре не поднялся, возвращает прежнее. Действует на все каналы сервера.",
+            model.autoUpdate, model::changeAutoUpdate, enabled = idle,
+        )
+    }
     if (model.nodeSignedIn) {
         Spacer(Modifier.height(AppTheme.spacing.m))
         Banner(
@@ -392,13 +474,17 @@ private fun ColumnScope.PlanStep(model: NodeWizardModel) {
 private fun ColumnScope.VerifyStep(model: NodeWizardModel) {
     val failed = model.verifyFailed
     if (failed == null) {
-        Text(
-            "Если Яндекс попросит ноду пройти проверку, откроется окно с капчей: она показывается с адреса сервера, пройдите её как обычно.",
-            style = AppTheme.typography.body,
-            color = AppTheme.colors.textSecondary,
-        )
-        Actions {
-            AppButton("Хватит ждать Яндекс", model::stopWaiting, style = ButtonStyle.Secondary)
+        if (model.transportTypes.contains(TransportType.VYANDEX)) {
+            Text(
+                "Если Яндекс попросит ноду пройти проверку, откроется окно с капчей: она показывается с адреса сервера, пройдите её как обычно.",
+                style = AppTheme.typography.body,
+                color = AppTheme.colors.textSecondary,
+            )
+        }
+        model.primaryType?.let { primary ->
+            Actions {
+                AppButton("Хватит ждать ${primary.shortLabel}", model::stopWaiting, style = ButtonStyle.Secondary)
+            }
         }
         return
     }
@@ -426,8 +512,8 @@ private fun ColumnScope.DoneStep(model: NodeWizardModel, onShowQr: () -> Unit, o
     val toaster = LocalToaster.current
     if (model.verifiedIp.isNotEmpty() && !model.primaryUp) {
         Banner(
-            "Сейчас работает резервный канал (прямое подключение к серверу). Канал через Яндекс ещё не поднялся: " +
-                "когда нода попросит проверку, OpenFlux покажет её, пройдите её.",
+            "Сейчас работает резервный канал (прямое подключение к серверу). Канал через ${model.primaryType?.shortLabel.orEmpty()} ещё не поднялся" +
+                if (model.primaryType == TransportType.VYANDEX) ": когда нода попросит проверку, OpenFlux покажет её, пройдите её." else ": OpenFlux переключится на него, когда он заработает.",
             Tone.Warning,
             icon = Icons.Rounded.Warning,
         )
