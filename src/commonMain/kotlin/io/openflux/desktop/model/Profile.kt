@@ -149,7 +149,8 @@ data class Profile(
                 secret = config.secret,
                 codec = if (config.codec == Codec.LEGACY.cliName) Codec.LEGACY else Codec.BATCHED,
                 session = config.negotiate,
-                priority = main.priority.takeIf { it != 0 } ?: 50,
+                // A lone carrier's link carries no priority: a new profile's.
+                priority = main.priority.takeIf { it != 0 } ?: 100,
                 context = if (config.negotiate) config.context else "",
                 extras = sorted.filter { it !== main }.map { ExtraTransport(type(it), value(it), priority = it.priority) },
                 source = source,

@@ -69,6 +69,33 @@ class CoreLinksContractTest {
         }
     }
 
+    /**
+     * The iOS app keeps profiles its own way and hands the core what
+     * ShareLink.encode builds (no codec, no context, documents at 100, the
+     * direct channel at 50): the same profile must make the same link.
+     */
+    @Test
+    fun sameLinksAsTheIosApp() = runTest {
+        val codec = codec() ?: return@runTest
+        val doc = "https://disk.yandex.ru/i/xyz"
+        val cases = listOf(
+            Profile(id = "a", name = "Дом", transport = TransportType.MAILRU, value = "https://cloud.mail.ru/public/Ab/Cd", secret = secret) to
+                ShareConfig(name = "Дом", secret = secret, transports = listOf(ShareTransport("mailru", url = "https://cloud.mail.ru/public/Ab/Cd", priority = 100))),
+            Profile(
+                id = "b", name = "Нода", transport = TransportType.VYANDEX, value = doc, secret = secret, session = true,
+                extras = listOf(ExtraTransport(TransportType.DIRECT, "203.0.113.7:9443", priority = 50)),
+            ) to ShareConfig(
+                name = "Нода", negotiate = true, secret = secret,
+                transports = listOf(ShareTransport("vyandex", url = doc, priority = 100), ShareTransport("direct", dial = "203.0.113.7:9443", priority = 50)),
+            ),
+            Profile(id = "c", name = "Прямой", transport = TransportType.DIRECT, value = "203.0.113.7:9443", secret = secret, session = true) to
+                ShareConfig(name = "Прямой", negotiate = true, secret = secret, transports = listOf(ShareTransport("direct", dial = "203.0.113.7:9443"))),
+        )
+        for ((profile, ios) in cases) {
+            assertEquals(codec.encode(ios), codec.encode(profile.toShare().getOrThrow()), profile.name)
+        }
+    }
+
     @Test
     fun linksMangledOnTheWayStillRead() = runTest {
         val codec = codec() ?: return@runTest
