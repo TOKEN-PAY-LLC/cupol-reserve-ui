@@ -81,9 +81,10 @@ object CoreConfig {
         }
         val args = buildList {
             add("--config"); add(paths.confFile)
-            // The context goes on the command line: .conf values end at '#'
-            // and the default context is "http://#".
-            add("--session-context=${profile.effectiveContext()}")
+            // An imported context goes on the command line (.conf values end
+            // at '#'); without one the core derives it by its rule, the one
+            // the exit uses too.
+            if (profile.context.isNotBlank()) add("--session-context=${profile.context}")
             if (paths.ipcSocket != null) add("--ipc-socket=${paths.ipcSocket}")
             if (exit) {
                 add("--share")
