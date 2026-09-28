@@ -1,6 +1,5 @@
 package io.openflux.desktop
 
-import io.openflux.desktop.data.JvmShareLinkCodec
 import io.openflux.desktop.model.AppSettings
 import io.openflux.desktop.model.CaptchaPrompt
 import io.openflux.desktop.model.ConnectionMode
@@ -314,7 +313,7 @@ class NodeWizardModelTest {
         val connection = FakeConnection(exitIp)
         val node = FakeNode(sudoFails)
         val platform = FakePlatform()
-        val container = AppContainer(profiles, settings, connection, platform, JvmShareLinkCodec(), node)
+        val container = AppContainer(profiles, settings, connection, platform, FakeShareLinkCodec(), node)
     }
 
     private class FakeNode(private val sudoFails: Boolean) : NodeWizardService {
@@ -326,7 +325,7 @@ class NodeWizardModelTest {
         val plannedWithCookies = mutableListOf<Boolean>()
         var documentName = ""
         var closed = false
-        private val codec = JvmShareLinkCodec()
+        private val codec = FakeShareLinkCodec()
 
         override suspend fun connect(target: SshTarget): ServerProbe {
             if (target.hostKey != "SHA256:new") throw NodeWizardException("новый сервер", hostKey = "SHA256:new", trust = true)
