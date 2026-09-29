@@ -9,6 +9,7 @@ import io.openflux.desktop.model.LogLevel
 import io.openflux.desktop.model.LogLine
 import io.openflux.desktop.model.NewChannel
 import io.openflux.desktop.model.NodePlan
+import io.openflux.desktop.model.NodeTransport
 import io.openflux.desktop.model.ServerProbe
 import io.openflux.desktop.model.SshTarget
 import io.openflux.desktop.model.Profile
@@ -121,15 +122,28 @@ interface NodeWizardService {
     /** SSH in, download the pinned installer and look at the server. */
     suspend fun connect(target: SshTarget): ServerProbe
     suspend fun newChannel(): NewChannel
-    /** What installing [channel] would change; port 0 lets the server pick. */
-    suspend fun plan(channel: String, withCookies: Boolean): NodePlan
-    /** Install and start the channel. [cookieHeader] "" leaves the node signed out. */
-    suspend fun apply(channel: NewChannel, documentUrl: String, port: Int, sudoPassword: String, cookieHeader: String)
+    /**
+     * What installing [channel] with [transports] (besides direct) would
+     * change; the server picks the port. [autoUpdate] turns the server's
+     * core updater on or off.
+     */
+    suspend fun plan(channel: String, transports: List<NodeTransport>, withCookies: Boolean, autoUpdate: Boolean): NodePlan
+    /** Install and start the channel. [cookieHeader] "" leaves the node signed out of Yandex. */
+    suspend fun apply(
+        channel: NewChannel,
+        transports: List<NodeTransport>,
+        port: Int,
+        autoUpdate: Boolean,
+        sudoPassword: String,
+        cookieHeader: String,
+    )
     suspend fun remove(channel: String, sudoPassword: String)
-    /** Whether the node can use the document (edit by link), as an anonymous visitor. */
+    /** Whether the node can use the Yandex document (edit by link), as an anonymous visitor. */
     suspend fun checkDocument(documentUrl: String)
-    /** The channel's `openflux://` link: the document, direct to host:port as backup. */
-    suspend fun shareLink(name: String, documentUrl: String, key: String, host: String, port: Int): String
+    /** New cups.online rooms for the channel: the packed list the node and its link take. */
+    suspend fun createCupsRooms(): String
+    /** The channel's `openflux://` link: [transports], then direct to host:port as the backup. */
+    suspend fun shareLink(name: String, key: String, host: String, port: Int, transports: List<NodeTransport>): String
     /** The addresses [host] resolves to, to compare with the tunnel's exit. */
     suspend fun resolve(host: String): Set<String>
 
