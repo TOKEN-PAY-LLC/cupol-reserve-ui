@@ -368,7 +368,7 @@ private fun DetailsColumn(model: HomeScreenModel, selected: Profile?, state: Con
             }
             if (!traffic.live && state is ConnectionState.Connected) {
                 Spacer(Modifier.height(AppTheme.spacing.s))
-                Text("Ядро не сообщает статистику для профилей без режима Session.", style = AppTheme.typography.caption, color = AppTheme.colors.textHint)
+                Text("Ядро не сообщает статистику: нет связи с ним по IPC (старое ядро?).", style = AppTheme.typography.caption, color = AppTheme.colors.textHint)
             }
         }
 
@@ -385,7 +385,8 @@ private fun DetailsColumn(model: HomeScreenModel, selected: Profile?, state: Con
             }
             KeyValueRow("Шифрование", if (profile.secret.isNotEmpty()) "AES-256-GCM" else "Нет ключа")
             // Android's VPN carries the traffic itself; its proxy runs only without it.
-            if (!exitMode && !(android && settings.fullTunnel)) {
+            // The full tunnel carries the traffic itself; the proxies run only without it.
+            if (!exitMode && !settings.fullTunnel) {
                 HorizontalRule()
                 val socksAddr = socks ?: "127.0.0.1:${settings.socksPort}"
                 KeyValueRow("SOCKS5", socksAddr) {
@@ -425,15 +426,16 @@ private fun DetailsColumn(model: HomeScreenModel, selected: Profile?, state: Con
             AppCard(padding = AppTheme.spacing.s) {
                 SwitchRow(
                     title = if (android) "VPN: весь трафик телефона" else "Весь трафик компьютера",
-                    description = if (android) {
-                        "Все приложения идут через ноду. Выключите, чтобы OpenFlux работал только как прокси SOCKS5 127.0.0.1:${settings.socksPort}."
-                    } else {
-                        "Все программы, игры и UDP идут через ноду, как VPN на Android. Нужны права администратора."
+                    description = when {
+                        android -> "Все приложения идут через ноду. Выключите, чтобы OpenFlux работал только как прокси SOCKS5 127.0.0.1:${settings.socksPort}."
+                        container.platform.fullTunnelPrompt != null ->
+                            "Все программы, игры и UDP идут через ноду, как VPN на Android; ${container.platform.fullTunnelPrompt}."
+                        else -> "Все программы, игры и UDP идут через ноду, как VPN на Android. Нужны права администратора."
                     },
                     checked = settings.fullTunnel,
                     onCheckedChange = model::setFullTunnel,
                 )
-                if (settings.fullTunnel && !container.platform.elevated) {
+                if (settings.fullTunnel && !container.platform.elevated && container.platform.fullTunnelPrompt == null) {
                     Banner(
                         "OpenFlux запущен без прав администратора, а они нужны этому режиму.",
                         Tone.Warning,

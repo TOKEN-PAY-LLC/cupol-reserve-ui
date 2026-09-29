@@ -41,7 +41,7 @@ data class AppSettings(
      */
     val systemProxyDefaultOn: Boolean = false,
     /**
-     * Client: all of the computer's traffic through a Wintun adapter (the
+     * Client: all of the computer's traffic through Wintun (Windows) or utun (macOS) (the
      * core's --inbound=tun), like the Android VPN, instead of the proxies.
      * Needs administrator rights.
      */

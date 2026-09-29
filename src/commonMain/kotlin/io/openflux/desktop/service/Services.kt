@@ -71,10 +71,16 @@ interface PlatformServices {
     val clientRepo: String
     /** Whether this OS can point its system proxy at OpenFlux. */
     val systemProxySupported: Boolean
-    /** Whether the full tunnel (all traffic through a Wintun adapter) runs on this OS. */
+    /** Whether the full tunnel (all traffic through Wintun on Windows, utun on macOS) runs on this OS. */
     val fullTunnelSupported: Boolean
     /** Whether OpenFlux runs with administrator rights, which the full tunnel needs. */
     val elevated: Boolean
+    /**
+     * How the full tunnel gets administrator rights for the core on each
+     * connect, in the user's words ("macOS спросит пароль администратора"),
+     * when OpenFlux itself is not elevated; null when nothing is asked.
+     */
+    val fullTunnelPrompt: String? get() = null
 
     /** Starts OpenFlux again as administrator (UAC) and exits this copy; false if that did not happen. */
     fun restartElevated(): Boolean
