@@ -15,11 +15,11 @@ object ShareLinkMessages {
 
     fun text(code: String, param: String = "", detail: String = ""): String = when (code) {
         "not_link" -> "Это не ссылка openflux://"
-        "unsupported_version" -> "Неподдерживаемая версия ссылки, обновите OpenFlux"
+        "unsupported_version" -> "Неподдерживаемая версия ссылки, обновите CUPOL Reserve"
         "case_changed" -> "Буквы в ссылке поменяли регистр по дороге: скопируйте её ещё раз"
         "damaged" -> "Ссылка повреждена или обрезана: скопируйте её целиком ещё раз"
         "too_large" -> "Ссылка слишком большая"
-        "bad_payload" -> "Ссылка повреждена: внутри не настройки OpenFlux"
+        "bad_payload" -> "Ссылка повреждена: внутри не настройки CUPOL Reserve"
         "bad_config" -> "Не удалось собрать ссылку из профиля"
         "no_transports" -> "В ссылке нет транспортов"
         "several_need_session" -> "Несколько транспортов требуют режима Session"
@@ -27,7 +27,7 @@ object ShareLinkMessages {
         "short_secret" -> "Ключ должен быть не короче $param символов"
         "unknown_codec" -> "Неизвестный кодек «$param»"
         "not_shareable" -> "${TransportType.fromCli(param)?.label ?: param} нельзя передать ссылкой: токен привязан к аккаунту"
-        "unknown_transport" -> "Неизвестный транспорт «$param»: возможно, нужно обновить OpenFlux"
+        "unknown_transport" -> "Неизвестный транспорт «$param»: возможно, нужно обновить CUPOL Reserve"
         "direct_no_dial" -> "У direct нет адреса ноды"
         "direct_needs_session" -> "Direct работает только в режиме Session"
         else -> if (detail.isNotBlank()) "Не удалось обработать ссылку: $detail" else "Не удалось обработать ссылку"

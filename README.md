@@ -1,4 +1,10 @@
-# OpenFluxClientShared
+# CUPOL Reserve UI
+
+This is a GPL-3.0 fork of [OpenFluxClientShared](https://github.com/p1neappleXpress/OpenFluxClientShared),
+modified by TOKEN PAY LLC on 2026-09-30. The visible product name is
+**CUPOL Reserve**. The original authors and the `openflux://` link format are
+retained for attribution and interoperability. This module remains separate
+from the proprietary CUPOL VPN app.
 
 The Compose Multiplatform UI and business logic shared by
 [OpenFluxAndroid](https://github.com/p1neappleXpress/OpenFluxAndroid) and

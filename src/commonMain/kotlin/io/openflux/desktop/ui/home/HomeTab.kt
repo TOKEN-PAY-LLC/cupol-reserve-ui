@@ -427,7 +427,7 @@ private fun DetailsColumn(model: HomeScreenModel, selected: Profile?, state: Con
                 SwitchRow(
                     title = if (android) "VPN: весь трафик телефона" else "Весь трафик компьютера",
                     description = when {
-                        android -> "Все приложения идут через ноду. Выключите, чтобы OpenFlux работал только как прокси SOCKS5 127.0.0.1:${settings.socksPort}."
+                        android -> "Все приложения идут через ноду. Выключите, чтобы CUPOL Reserve работал только как прокси SOCKS5 127.0.0.1:${settings.socksPort}."
                         container.platform.fullTunnelPrompt != null ->
                             "Все программы, игры и UDP идут через ноду, как VPN на Android; ${container.platform.fullTunnelPrompt}."
                         else -> "Все программы, игры и UDP идут через ноду, как VPN на Android. Нужны права администратора."
@@ -437,7 +437,7 @@ private fun DetailsColumn(model: HomeScreenModel, selected: Profile?, state: Con
                 )
                 if (settings.fullTunnel && !container.platform.elevated && container.platform.fullTunnelPrompt == null) {
                     Banner(
-                        "OpenFlux запущен без прав администратора, а они нужны этому режиму.",
+                        "CUPOL Reserve запущен без прав администратора, а они нужны этому режиму.",
                         Tone.Warning,
                         modifier = Modifier.padding(AppTheme.spacing.s),
                         action = {
@@ -454,7 +454,7 @@ private fun DetailsColumn(model: HomeScreenModel, selected: Profile?, state: Con
             AppCard(padding = AppTheme.spacing.s) {
                 SwitchRow(
                     title = "Системный прокси Windows",
-                    description = "Браузеры и большинство программ пойдут через OpenFlux, пока он подключён. При отключении прежние настройки вернутся.",
+                    description = "Браузеры и большинство программ пойдут через CUPOL Reserve, пока он подключён. При отключении прежние настройки вернутся.",
                     checked = settings.systemProxy,
                     onCheckedChange = model::setSystemProxy,
                 )
@@ -476,7 +476,7 @@ private fun DetailsColumn(model: HomeScreenModel, selected: Profile?, state: Con
                     val matrix = remember(link) { model.qr(link) }
                     val hint = @Composable {
                         Text(
-                            "Отсканируйте в OpenFlux на другом телефоне или вставьте ссылку в OpenFlux на компьютере. В коде ключ шифрования: показывайте только своим.",
+                            "Отсканируйте в CUPOL Reserve на другом телефоне или вставьте ссылку в CUPOL Reserve на компьютере. В коде ключ шифрования: показывайте только своим.",
                             style = AppTheme.typography.body,
                             color = AppTheme.colors.textSecondary,
                         )

@@ -152,7 +152,7 @@ fun NodeWizardPane(model: NodeWizardModel, onClose: () -> Unit, onSaved: (String
         }
     }
     if (qrOpen) {
-        AppDialog(title = "Отсканируйте в OpenFlux", onDismiss = { qrOpen = false }, secondary = "Закрыть") {
+        AppDialog(title = "Отсканируйте в CUPOL Reserve", onDismiss = { qrOpen = false }, secondary = "Закрыть") {
             val matrix = remember(model.shareLink) { model.qr() }
             val hint = "На другом устройстве: Профили → Импорт → Сканировать QR. В коде ключ канала: показывайте его только тому, кто будет им пользоваться."
             BoxWithConstraints(Modifier.fillMaxWidth()) {
@@ -270,7 +270,7 @@ private fun ColumnScope.ServerStep(model: NodeWizardModel) {
     } else {
         AppTextField(model.password, { model.password = it }, label = "Пароль", secret = true, enabled = idle)
     }
-    Note("Пароль и ключ нужны только на время установки: OpenFlux их не сохраняет.")
+    Note("Пароль и ключ нужны только на время установки: CUPOL Reserve их не сохраняет.")
     Actions {
         AppButton(if (idle) "Подключиться" else "Подключаюсь…", { model.connect() }, enabled = idle)
     }
@@ -288,7 +288,7 @@ private fun ColumnScope.DocumentStep(model: NodeWizardModel) {
             KeyValueRow("Система", listOf(probe.os, probe.arch).filter(String::isNotBlank).joinToString(", "))
             if (probe.channels.isNotEmpty()) {
                 HorizontalRule()
-                KeyValueRow("Каналов OpenFlux", probe.channels.size.toString())
+                KeyValueRow("Каналов CUPOL Reserve", probe.channels.size.toString())
             }
         }
         Spacer(Modifier.height(AppTheme.spacing.l))
@@ -462,7 +462,7 @@ private fun ColumnScope.DoneStep(model: NodeWizardModel, onShowQr: () -> Unit, o
     if (model.verifiedIp.isNotEmpty() && !model.primaryUp) {
         Banner(
             "Сейчас работает резервный канал (прямое подключение к серверу). Канал через ${model.primaryType?.shortLabel.orEmpty()} ещё не поднялся" +
-                if (model.primaryType == TransportType.VYANDEX) ": когда нода попросит проверку, OpenFlux покажет её, пройдите её." else ": OpenFlux переключится на него, когда он заработает.",
+                if (model.primaryType == TransportType.VYANDEX) ": когда нода попросит проверку, CUPOL Reserve покажет её, пройдите её." else ": CUPOL Reserve переключится на него, когда он заработает.",
             Tone.Warning,
             icon = Icons.Rounded.Warning,
         )

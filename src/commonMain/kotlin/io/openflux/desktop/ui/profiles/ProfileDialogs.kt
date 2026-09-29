@@ -86,7 +86,7 @@ fun ImportDialog(model: ProfilesScreenModel) {
         },
     ) {
         Text(
-            "Ссылка openflux:// или QR-код приходят от владельца ноды: в OpenFlux это «QR и ссылка» у профиля, в режиме ноды — карточка на главной.",
+            "Ссылка openflux:// или QR-код приходят от владельца ноды: в CUPOL Reserve это «QR и ссылка» у профиля, в режиме ноды — карточка на главной.",
             style = AppTheme.typography.body,
             color = AppTheme.colors.textSecondary,
         )
@@ -136,7 +136,7 @@ fun ImportDialog(model: ProfilesScreenModel) {
             Spacer(Modifier.height(AppTheme.spacing.l))
             val config = ready.config
             AppCard(padding = 0.dp) {
-                KeyValueRow("Название", config.name.ifBlank { "OpenFlux" })
+                KeyValueRow("Название", config.name.ifBlank { "CUPOL Reserve" })
                 KeyValueRow("Режим", if (config.negotiate) "Session" else "Обычный")
                 KeyValueRow("Транспорты", config.transports.joinToString(" + ") { TransportType.fromCli(it.type)?.shortLabel ?: it.type })
                 KeyValueRow("Ключ шифрования", if (config.secret.isNotEmpty()) "есть" else "нет")
@@ -171,7 +171,7 @@ fun ShareDialog(model: ProfilesScreenModel, profile: Profile) {
             onSuccess = { value ->
                 val matrix = remember(value) { model.qr(value) }
                 val hint = @Composable {
-                    Text("Отсканируйте в OpenFlux на другом устройстве (Профили → Импорт) или вставьте ссылку в OpenFlux на компьютере.",
+                    Text("Отсканируйте в CUPOL Reserve на другом устройстве (Профили → Импорт) или вставьте ссылку в CUPOL Reserve на компьютере.",
                         style = AppTheme.typography.body, color = AppTheme.colors.textSecondary)
                     Spacer(Modifier.height(AppTheme.spacing.m))
                     Banner("В коде ключ шифрования: передавайте только тому, кто будет пользоваться каналом.", Tone.Warning, icon = Icons.Rounded.Lock)

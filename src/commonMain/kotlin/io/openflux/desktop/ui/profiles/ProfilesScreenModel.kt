@@ -155,7 +155,7 @@ class ProfilesScreenModel(private val container: AppContainer) : ScreenModel {
     fun qrFromClipboard(): String? = platform.qrFromClipboardImage()
 
     suspend fun qrFromFile(): Pair<String?, Boolean> {
-        val path = platform.pickFile("QR-код OpenFlux", listOf("png", "jpg", "jpeg", "bmp", "gif")) ?: return null to false
+        val path = platform.pickFile("QR-код CUPOL Reserve", listOf("png", "jpg", "jpeg", "bmp", "gif")) ?: return null to false
         return platform.qrFromFile(path) to true
     }
 

@@ -89,13 +89,12 @@ private fun Brand(collapsed: Boolean) {
             Modifier.size(40.dp).clip(AppTheme.shapes.button).background(colors.accent),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(painterResource(AppIcons.Logo), "OpenFlux", tint = Color.White, modifier = Modifier.size(34.dp))
+            Icon(painterResource(AppIcons.Logo), "CUPOL Reserve", tint = Color.White, modifier = Modifier.size(34.dp))
         }
         if (!collapsed) {
             Spacer(Modifier.width(AppTheme.spacing.m))
             Column {
-                Text("OpenFlux", style = AppTheme.typography.sectionTitle, color = colors.text)
-                Text("Зашифрованный туннель", style = AppTheme.typography.caption, color = colors.textSecondary)
+                Text("CUPOL Reserve", style = AppTheme.typography.sectionTitle, color = colors.text)
             }
         }
     }

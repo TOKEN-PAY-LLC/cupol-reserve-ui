@@ -77,15 +77,15 @@ import org.jetbrains.compose.resources.painterResource
 
 enum class SettingsCategory(val title: String, val subtitle: String, val icon: DrawableResource) {
     Connection("Подключение", "Режим, порты, автозапуск", AppIcons.Swap),
-    SystemProxy("Системный прокси", "Весь трафик компьютера через OpenFlux", AppIcons.Routing),
-    Core("Ядро OpenFlux", "Файл ядра и подробный журнал", AppIcons.Code),
+    SystemProxy("Системный прокси", "Весь трафик компьютера через CUPOL Reserve", AppIcons.Routing),
+    Core("Ядро CUPOL Reserve", "Файл ядра и подробный журнал", AppIcons.Code),
     Interface("Интерфейс", "Тема, трей, журнал", AppIcons.DarkMode),
     About("О программе", "Версии и репозитории", AppIcons.Info);
 
     /** Title and subtitle in the device's words. */
     fun label(android: Boolean): Pair<String, String> = when {
         !android -> title to subtitle
-        this == SystemProxy -> "VPN" to "Весь трафик телефона через OpenFlux"
+        this == SystemProxy -> "VPN" to "Весь трафик телефона через CUPOL Reserve"
         this == Core -> title to "Версия и подробный журнал"
         this == Interface -> title to "Тема, журнал"
         else -> title to subtitle
@@ -202,7 +202,7 @@ private fun CategoryRow(category: SettingsCategory, android: Boolean, selected: 
 @Composable
 private fun ActiveNotice(model: SettingsScreenModel) {
     val state by model.container.connection.state.collectAsState()
-    if (state.isActive) Banner("OpenFlux подключён: эти параметры вступят в силу при следующем подключении.", Tone.Warning)
+    if (state.isActive) Banner("CUPOL Reserve подключён: эти параметры вступят в силу при следующем подключении.", Tone.Warning)
 }
 
 @Composable
@@ -252,7 +252,7 @@ private fun ConnectionSettings(model: SettingsScreenModel) {
     AppCard(padding = AppTheme.spacing.s) {
         SwitchRow(
             "Подключаться при запуске",
-            "Сразу подключить выбранный профиль, когда OpenFlux открывается",
+            "Сразу подключить выбранный профиль, когда CUPOL Reserve открывается",
             settings.autoConnect,
             { v -> model.update { it.copy(autoConnect = v) } },
         )
@@ -302,8 +302,8 @@ private fun SystemProxySettings(model: SettingsScreenModel) {
         val how = "Весь трафик, включая игры и UDP, идёт через ноду; системный прокси тогда не нужен. Ядру нужны права администратора" +
             when {
                 prompt != null -> ": $prompt."
-                platform.elevated -> ", у OpenFlux они есть."
-                else -> ": запустите OpenFlux от имени администратора."
+                platform.elevated -> ", у CUPOL Reserve они есть."
+                else -> ": запустите CUPOL Reserve от имени администратора."
             }
         AppCard(padding = AppTheme.spacing.s) {
             SwitchRow(
@@ -330,7 +330,7 @@ private fun SystemProxySettings(model: SettingsScreenModel) {
     AppCard(padding = AppTheme.spacing.s) {
         SwitchRow(
             "Использовать системный прокси",
-            "Пока OpenFlux подключён, Windows направляет браузеры и программы на его HTTP-прокси",
+            "Пока CUPOL Reserve подключён, Windows направляет браузеры и программы на его HTTP-прокси",
             settings.systemProxy,
             { v -> model.update { it.copy(systemProxy = v) } },
         )
@@ -355,7 +355,7 @@ private fun VpnSettings(model: SettingsScreenModel, settings: AppSettings) {
     AppCard(padding = AppTheme.spacing.s) {
         SwitchRow(
             "VPN: весь трафик телефона",
-            "Все приложения, кроме самого OpenFlux, идут через ноду. Android спросит разрешение при первом подключении.",
+            "Все приложения, кроме самого CUPOL Reserve, идут через ноду. Android спросит разрешение при первом подключении.",
             settings.fullTunnel,
             { v ->
                 model.update { it.copy(fullTunnel = v) }
@@ -368,7 +368,7 @@ private fun VpnSettings(model: SettingsScreenModel, settings: AppSettings) {
         if (settings.fullTunnel) {
             "Если канал до ноды прервётся, VPN останется включённым и не выпустит трафик напрямую, пока канал не поднимется."
         } else {
-            "Без VPN OpenFlux поднимает только прокси SOCKS5 127.0.0.1:${settings.socksPort}: через ноду пойдут лишь приложения, где он указан."
+            "Без VPN CUPOL Reserve поднимает только прокси SOCKS5 127.0.0.1:${settings.socksPort}: через ноду пойдут лишь приложения, где он указан."
         },
         style = AppTheme.typography.bodySmall,
         color = AppTheme.colors.textSecondary,
@@ -384,7 +384,7 @@ private fun CoreSettings(model: SettingsScreenModel) {
         if (model.android) {
             KeyValueRow("Встроенное ядро", platform.coreVersion)
             Text(
-                "Ядро OpenFlux встроено в приложение: сборка из форка с исправлениями Volga и мастером нод.",
+                "Ядро CUPOL Reserve встроено в приложение: сборка из форка с исправлениями Volga и мастером нод.",
                 style = AppTheme.typography.bodySmall,
                 color = AppTheme.colors.textSecondary,
             )
@@ -397,7 +397,7 @@ private fun CoreSettings(model: SettingsScreenModel) {
         if (settings.coreSource == CoreSource.Bundled) {
             KeyValueRow("Встроенное ядро", platform.coreVersion)
             Text(
-                "Сборка ядра OpenFlux из форка с исправлениями Volga и поддержкой статуса для этого приложения.",
+                "Сборка ядра CUPOL Reserve из форка с исправлениями Volga и поддержкой статуса для этого приложения.",
                 style = AppTheme.typography.bodySmall,
                 color = AppTheme.colors.textSecondary,
             )
@@ -416,7 +416,7 @@ private fun CoreSettings(model: SettingsScreenModel) {
                     scope.launch {
                         // No extension filter: the core binary has no extension on macOS/Linux
                         // (openflux-darwin-arm64, openflux-linux-amd64), only on Windows.
-                        platform.pickFile("Файл ядра OpenFlux", emptyList())?.let { path -> model.update { it.copy(customCorePath = path) } }
+                        platform.pickFile("Файл ядра CUPOL Reserve", emptyList())?.let { path -> model.update { it.copy(customCorePath = path) } }
                     }
                 }, style = ButtonStyle.Secondary, leading = Icons.Rounded.FolderOpen)
             }
@@ -498,7 +498,7 @@ private fun AboutSettings(model: SettingsScreenModel) {
     AppCard(padding = 0.dp) {
         KeyValueRow("Версия приложения", platform.appVersion)
         HorizontalRule()
-        KeyValueRow("Ядро OpenFlux", platform.coreVersion)
+        KeyValueRow("Ядро CUPOL Reserve", platform.coreVersion)
         HorizontalRule()
         KeyValueRow(
             "Последний выпуск",
@@ -523,7 +523,7 @@ private fun AboutSettings(model: SettingsScreenModel) {
         LinkRow("Этот клиент", "github.com/${platform.clientRepo}", "https://github.com/${platform.clientRepo}", platform::openUrl)
     }
     Text(
-        "OpenFlux — экспериментальный проект без независимого аудита безопасности. Используйте свои ноды и не публикуйте ключи и ссылки openflux://.",
+        "CUPOL Reserve — экспериментальный проект без независимого аудита безопасности. Используйте свои ноды и не публикуйте ключи и ссылки openflux://.",
         style = AppTheme.typography.bodySmall,
         color = AppTheme.colors.textSecondary,
     )

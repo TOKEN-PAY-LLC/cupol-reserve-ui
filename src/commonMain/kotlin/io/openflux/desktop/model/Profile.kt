@@ -143,7 +143,7 @@ data class Profile(
                 ?: throw IllegalArgumentException("Неизвестный транспорт ${t.type}")
             return Profile(
                 id = id,
-                name = config.name.ifBlank { "OpenFlux" },
+                name = config.name.ifBlank { "CUPOL Reserve" },
                 transport = type(main),
                 value = value(main),
                 secret = config.secret,
