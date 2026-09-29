@@ -42,8 +42,8 @@ class WindowsCoreElevationTest {
         assertTrue("-Verb RunAs" in launcher && WindowsCoreElevation.DECLINED in launcher, launcher)
         val inner = Regex("-EncodedCommand ([A-Za-z0-9+/=]+)'").find(launcher)!!.groupValues[1]
         val watcher = String(Base64.getDecoder().decode(inner), Charsets.UTF_16LE)
-        assertTrue("-FilePath 'C:\\Program Files\\OpenFlux\\openflux.exe'" in watcher, watcher)
-        assertTrue("-ArgumentList '--url=https://x/?a=1&b=''2'''" in watcher, watcher)
+        assertTrue("FileName = 'C:\\Program Files\\OpenFlux\\openflux.exe'" in watcher, watcher)
+        assertTrue("Arguments = '--url=https://x/?a=1&b=''2'''" in watcher, watcher)
         assertTrue("Get-Process -Id 4242" in watcher && "Test-Path -LiteralPath ${WindowsCoreElevation.ps(File("C:\\rt\\stop").absolutePath)}" in watcher, watcher)
         assertTrue(WindowsCoreElevation.cancelled(WindowsCoreElevation.DECLINED))
     }
@@ -65,15 +65,36 @@ class WindowsCoreElevationTest {
     private fun waitFor(what: String, check: () -> Boolean) {
         val deadline = System.currentTimeMillis() + 20_000
         while (!check()) {
-            check(System.currentTimeMillis() < deadline) { "timed out waiting for $what" }
+            check(System.currentTimeMillis() < deadline) {
+                "timed out waiting for $what; out: ${File(dir, "o.log").readText()} err: ${File(dir, "e.log").readText()}"
+            }
             Thread.sleep(100)
         }
     }
 
-    /** A stand-in core ([FakeCore]): prints its arguments one per line, then waits. */
-    private fun fakeCore(vararg args: String) = listOf(
-        ProcessHandle.current().info().command().get(), "-cp", System.getProperty("java.class.path"), FakeCore::class.java.name,
-    ) + args
+    /**
+     * A stand-in core: prints its arguments one per line, then waits. A
+     * one-file Java program (java runs the source), so its command line
+     * stays short and Java parses it the way the core's Go runtime does.
+     */
+    private fun fakeCore(vararg args: String): List<String> {
+        val source = File(dir, "FakeCore.java")
+        source.writeText(
+            """
+            public class FakeCore {
+                public static void main(String[] args) throws Exception {
+                    for (String a : args) System.out.println("arg:" + a);
+                    System.out.flush();
+                    Thread.sleep(60000);
+                }
+            }
+            """.trimIndent(),
+        )
+        return listOf(ProcessHandle.current().info().command().get(), source.absolutePath) + args
+    }
+
+    /** Everything the watcher printed, for failure messages. */
+    private fun Process.said(): String = runCatching { inputStream.bufferedReader().readText() }.getOrDefault("")
 
     @Test
     fun stopFileEndsTheCoreAndArgumentsArriveIntact() {
@@ -102,16 +123,7 @@ class WindowsCoreElevationTest {
         if (!windows) return
         val (process, _, _) = watch(listOf("cmd.exe", "/c", "exit 3"), ProcessHandle.current().pid())
         assertTrue(process.waitFor(20, TimeUnit.SECONDS))
-        assertEquals(3, process.exitValue())
+        assertEquals(3, process.exitValue(), process.said())
     }
 }
 
-/** Run by [WindowsCoreElevationTest] as the core. */
-object FakeCore {
-    @JvmStatic
-    fun main(args: Array<String>) {
-        args.forEach { println("arg:$it") }
-        System.out.flush()
-        Thread.sleep(60_000)
-    }
-}

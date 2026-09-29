@@ -39,28 +39,49 @@ object WindowsCoreElevation {
         return listOf("powershell.exe") + PS_FLAGS.split(" ") + listOf("-EncodedCommand", encoded(launcher))
     }
 
-    /** The elevated side: starts the core hidden and stops it when told to. */
+    /**
+     * The elevated side: starts the core hidden and stops it when told to.
+     * System.Diagnostics.Process rather than Start-Process, which loses the
+     * exit code of a process that ends at once when its output is
+     * redirected; the output is copied to the files unbuffered, so the app
+     * reads it as it comes.
+     */
     internal fun watchScript(core: List<String>, dir: File, out: File, err: File, stop: File, appPid: Long): String {
-        val exe = core.first()
         val args = core.drop(1).joinToString(" ", transform = ::argv)
-        val argList = if (args.isEmpty()) "" else " -ArgumentList ${ps(args)}"
         return """
             ${'$'}ErrorActionPreference = 'Stop'
+            function Open-Log(${'$'}path) { New-Object System.IO.FileStream(${'$'}path, [System.IO.FileMode]::Append, [System.IO.FileAccess]::Write, [System.IO.FileShare]::ReadWrite, 1) }
+            ${'$'}o = Open-Log ${ps(out.absolutePath)}
+            ${'$'}e = Open-Log ${ps(err.absolutePath)}
             try {
-                ${'$'}p = Start-Process -FilePath ${ps(exe)}$argList -WorkingDirectory ${ps(dir.absolutePath)} -RedirectStandardOutput ${ps(out.absolutePath)} -RedirectStandardError ${ps(err.absolutePath)} -NoNewWindow -PassThru
+                ${'$'}psi = New-Object System.Diagnostics.ProcessStartInfo
+                ${'$'}psi.FileName = ${ps(core.first())}
+                ${'$'}psi.Arguments = ${ps(args)}
+                ${'$'}psi.WorkingDirectory = ${ps(dir.absolutePath)}
+                ${'$'}psi.UseShellExecute = ${'$'}false
+                ${'$'}psi.CreateNoWindow = ${'$'}true
+                ${'$'}psi.RedirectStandardOutput = ${'$'}true
+                ${'$'}psi.RedirectStandardError = ${'$'}true
+                ${'$'}p = [System.Diagnostics.Process]::Start(${'$'}psi)
             } catch {
-                Add-Content -LiteralPath ${ps(err.absolutePath)} -Value ("fatal: " + ${'$'}_.Exception.Message)
+                ${'$'}m = [System.Text.Encoding]::UTF8.GetBytes("fatal: " + ${'$'}_.Exception.Message + "`n")
+                ${'$'}e.Write(${'$'}m, 0, ${'$'}m.Length)
+                ${'$'}e.Close(); ${'$'}o.Close()
                 exit 1
             }
-            ${'$'}null = ${'$'}p.Handle
+            ${'$'}copyOut = ${'$'}p.StandardOutput.BaseStream.CopyToAsync(${'$'}o)
+            ${'$'}copyErr = ${'$'}p.StandardError.BaseStream.CopyToAsync(${'$'}e)
             while (-not ${'$'}p.HasExited) {
                 if ((Test-Path -LiteralPath ${ps(stop.absolutePath)}) -or -not (Get-Process -Id $appPid -ErrorAction SilentlyContinue)) {
-                    Stop-Process -Id ${'$'}p.Id -Force -ErrorAction SilentlyContinue
+                    try { ${'$'}p.Kill() } catch {}
                     break
                 }
                 Start-Sleep -Milliseconds 300
             }
             ${'$'}p.WaitForExit()
+            [void]${'$'}copyOut.Wait(5000)
+            [void]${'$'}copyErr.Wait(5000)
+            ${'$'}o.Close(); ${'$'}e.Close()
             exit ${'$'}p.ExitCode
         """.trimIndent()
     }
