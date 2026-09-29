@@ -103,7 +103,7 @@ class NodeWizardModel(private val container: AppContainer, private val scope: Co
     var sudoPassword by mutableStateOf("")
     val needsSudoPassword: Boolean get() = probe?.sudo == "password"
     /** The server's core updater: one timer for every channel there. */
-    var autoUpdate by mutableStateOf(true)
+    var autoUpdate by mutableStateOf(false)
         private set
     /** The carriers the plan was made for, primary first. */
     var transports by mutableStateOf<List<NodeTransport>>(emptyList())

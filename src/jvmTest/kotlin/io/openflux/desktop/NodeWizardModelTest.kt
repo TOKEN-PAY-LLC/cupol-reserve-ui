@@ -79,7 +79,7 @@ class NodeWizardModelTest {
         wizard.install()
         advanceUntilIdle()
         assertEquals(WizardStep.Done, wizard.step, wizard.verifyFailed ?: wizard.error ?: "")
-        assertEquals(listOf("of-test12", "vyandex=$docUrl", "31337", "autoUpdate=true", "ssh-pass"), env.node.applied)
+        assertEquals(listOf("of-test12", "vyandex=$docUrl", "31337", "autoUpdate=false", "ssh-pass"), env.node.applied)
         assertEquals(serverIp, wizard.verifiedIp)
         assertTrue(wizard.primaryUp)
         assertTrue(wizard.unsaved)
@@ -261,15 +261,15 @@ class NodeWizardModelTest {
         assertEquals(listOf(chosen), env.node.plannedTransports)
         assertEquals(TransportType.MAILRU, wizard.primaryType)
 
-        // Turning the updater off asks the server again, and install says so.
-        wizard.changeAutoUpdate(false)
+        // Turning the updater on asks the server again, and install says so.
+        wizard.changeAutoUpdate(true)
         advanceUntilIdle()
-        assertEquals(listOf(true, false), env.node.plannedAutoUpdate)
+        assertEquals(listOf(false, true), env.node.plannedAutoUpdate)
         wizard.install()
         advanceUntilIdle()
         assertEquals(WizardStep.Done, wizard.step, wizard.verifyFailed ?: wizard.error ?: "")
         assertEquals(
-            listOf("of-test12", "mailru=https://cloud.mail.ru/public/DEmN/ETbZW2MPY cupsonline=WyJyb29tLTEiXQ", "31337", "autoUpdate=false", "p"),
+            listOf("of-test12", "mailru=https://cloud.mail.ru/public/DEmN/ETbZW2MPY cupsonline=WyJyb29tLTEiXQ", "31337", "autoUpdate=true", "p"),
             env.node.applied,
         )
         assertTrue(wizard.primaryUp)
