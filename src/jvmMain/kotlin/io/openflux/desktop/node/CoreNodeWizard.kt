@@ -9,7 +9,6 @@ import io.openflux.desktop.model.NodeTransport
 import io.openflux.desktop.model.NodeWizardException
 import io.openflux.desktop.model.ServerProbe
 import io.openflux.desktop.model.SshTarget
-import io.openflux.desktop.model.YandexDocument
 import io.openflux.desktop.ui.BrowserPage
 import io.openflux.desktop.service.NodeWizardService
 import io.openflux.desktop.service.SettingsRepository
@@ -43,7 +42,6 @@ import java.util.concurrent.atomic.AtomicLong
 class CoreNodeWizard(
     private val settings: SettingsRepository,
     private val binary: CoreBinary,
-    private val browser: YandexDocBrowser = YandexDocBrowser(),
 ) : NodeWizardService {
     private val json = Json { ignoreUnknownKeys = true }
     private val lock = Mutex()
@@ -74,12 +72,11 @@ class CoreNodeWizard(
         return NewChannel(reply.string("channel"), reply.string("key"))
     }
 
-    override suspend fun plan(channel: String, transports: List<NodeTransport>, withCookies: Boolean, autoUpdate: Boolean): NodePlan {
-        val reply = call("plan", "channel=$channel ${transports.names()} withCookies=$withCookies autoUpdate=$autoUpdate") {
+    override suspend fun plan(channel: String, transports: List<NodeTransport>, autoUpdate: Boolean): NodePlan {
+        val reply = call("plan", "channel=$channel ${transports.names()} autoUpdate=$autoUpdate") {
             put("channel", channel)
             put("channelPort", 0)
             put("transports", transports.json())
-            put("withCookies", withCookies)
             put("autoUpdate", autoUpdate)
         }
         return json.decodeFromJsonElement(NodePlan.serializer(), reply.getValue("plan"))
@@ -91,7 +88,6 @@ class CoreNodeWizard(
         port: Int,
         autoUpdate: Boolean,
         sudoPassword: String,
-        cookieHeader: String,
     ) {
         call("apply", "channel=${channel.id} ${transports.names()} port=$port autoUpdate=$autoUpdate") {
             put("channel", channel.id)
@@ -100,7 +96,6 @@ class CoreNodeWizard(
             put("channelPort", port)
             put("autoUpdate", autoUpdate)
             put("sudoPassword", sudoPassword)
-            put("cookies", cookieHeader)
         }
     }
 
@@ -138,14 +133,7 @@ class CoreNodeWizard(
             .getOrDefault(emptySet())
     }
 
-    override val documentPage: StateFlow<BrowserPage?> = browser.page
-
-    override suspend fun createDocument(fileName: String, onStep: (String) -> Unit): YandexDocument = browser.create(fileName, onStep)
-
-    override fun cancelDocument() = browser.cancel()
-
     override fun close() {
-        browser.cancel()
         val current = helper
         helper = null
         if (current != null) {

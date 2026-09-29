@@ -206,10 +206,10 @@ private fun Status(model: NodeWizardModel) {
     val error = model.error
     val notice = model.notice
     // The document step shows the browser's progress next to the browser.
-    if ((busy == null || model.documentProgress != null) && error == null && notice == null) return
+    if (busy == null && error == null && notice == null) return
     Spacer(Modifier.height(AppTheme.spacing.l))
     when {
-        busy != null && model.documentProgress == null -> Banner(busy, Tone.Accent, icon = Icons.Rounded.Info)
+        busy != null -> Banner(busy, Tone.Accent, icon = Icons.Rounded.Info)
         error != null -> Banner(error, Tone.Danger, icon = Icons.Rounded.ErrorOutline)
         notice != null -> Banner(notice, Tone.Success, icon = Icons.Rounded.CheckCircle)
     }
@@ -400,16 +400,6 @@ private fun ColumnScope.PlanStep(model: NodeWizardModel) {
             "Раз в 6 часов сервер проверяет новые релизы ноды на GitHub, сверяет хеши и обновляется сам. " +
                 "Если канал на новом ядре не поднялся, возвращает прежнее. Действует на все каналы сервера.",
             model.autoUpdate, model::changeAutoUpdate, enabled = idle,
-        )
-    }
-    if (model.nodeSignedIn) {
-        Spacer(Modifier.height(AppTheme.spacing.m))
-        Banner(
-            "Нода будет открывать документ под вашим аккаунтом Яндекса: так Яндекс не требует от сервера капчу. " +
-                "Кто получит root на сервере, получит и доступ к этому аккаунту, поэтому лучше входить отдельным аккаунтом для документов.",
-            Tone.Warning,
-            icon = Icons.Rounded.Warning,
-            action = { TextAction("Не передавать", model::forgetYandexSignIn, enabled = idle) },
         )
     }
     if (model.documentWarning.isNotEmpty()) {

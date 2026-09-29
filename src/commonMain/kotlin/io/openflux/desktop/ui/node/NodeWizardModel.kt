@@ -96,17 +96,6 @@ class NodeWizardModel(private val container: AppContainer, private val scope: Co
     /** Why the node, not this computer, will check the document. */
     var documentWarning by mutableStateOf("")
         private set
-    /** Progress of the built-in browser while the document is being made. */
-    var documentProgress by mutableStateOf<String?>(null)
-        private set
-    /** The Yandex sign-in for the node, dropped once it is installed. */
-    private var yandexCookies = ""
-    /** The document the sign-in created; another document gets none. */
-    private var cookiesDocument = ""
-    /** The node will get the Yandex sign-in: there is one and the channel has a Yandex document. */
-    val nodeSignedIn: Boolean get() = withCookies
-    /** The Yandex page to show while the document is being made. */
-    val documentPage get() = service.documentPage
 
     // Step 3: plan.
     var plan by mutableStateOf<NodePlan?>(null)
@@ -211,35 +200,12 @@ class NodeWizardModel(private val container: AppContainer, private val scope: Co
 
     // ---- step 2: document ----
 
-    fun createDocument() {
-        if (channel == null) return
-        launchCall("Открываю Яндекс во встроенном браузере…") {
-            try {
-                val fileName = NodeDocuments.fileName(name, host, container.platform.now())
-                val document = service.createDocument(fileName) { step ->
-                    documentProgress = step
-                    service.note(step, LogLevel.Debug)
-                }
-                yandexCookies = document.cookieHeader.takeIf(NodeDocuments::signedIn).orEmpty()
-                cookiesDocument = document.url
-                checkNow(document.url)
-            } finally {
-                documentProgress = null
-            }
-        }
-    }
-
-    fun cancelDocument() {
-        service.cancelDocument()
-    }
-
     fun checkDocument() {
         launchCall("Проверяю документ так, как его увидит нода…") { checkNow(documentInput) }
     }
 
     private suspend fun checkNow(url: String) {
         val clean = NodeDocuments.clean(url) ?: throw NodeWizardException("Нужна ссылка вида https://docs.yandex.ru/edit/d/…")
-        if (clean != cookiesDocument) yandexCookies = ""
         documentUrl = clean
         documentInput = clean
         busy = "Проверяю документ так, как его увидит нода…"
@@ -289,18 +255,9 @@ class NodeWizardModel(private val container: AppContainer, private val scope: Co
         step = WizardStep.Plan
     }
 
-    /** The node gets the Yandex sign-in only for a Yandex document it has. */
-    private val withCookies: Boolean get() = yandexCookies.isNotEmpty() && transports.any { it.type == TransportType.VYANDEX.cliName }
-
     private suspend fun askPlan() {
         busy = "Спрашиваю сервер, что изменится…"
-        plan = onServer(retry = true) { service.plan(channel!!.id, transports, withCookies, autoUpdate) }
-    }
-
-    fun forgetYandexSignIn() {
-        yandexCookies = ""
-        // The plan lists the sign-in step; ask again without it.
-        launchCall("Спрашиваю сервер, что изменится…") { askPlan() }
+        plan = onServer(retry = true) { service.plan(channel!!.id, transports, autoUpdate) }
     }
 
     fun changeAutoUpdate(on: Boolean) {
@@ -319,10 +276,8 @@ class NodeWizardModel(private val container: AppContainer, private val scope: Co
         launchCall("Устанавливаю ноду: скачиваю ядро, пишу конфигурацию, запускаю…", onFailure = { e ->
             if (e.sudo) { error = "sudo не принял пароль"; true } else false
         }) {
-            val cookies = if (withCookies) yandexCookies else ""
-            onServer { service.apply(channel, transports, plan.port, autoUpdate, sudoPassword, cookies) }
+            onServer { service.apply(channel, transports, plan.port, autoUpdate, sudoPassword) }
             installed = true
-            yandexCookies = ""
             val link = service.shareLink(profileName(), channel.key, host.trim(), plan.port, transports)
             shareLink = link
             val candidate = Profile.fromShare(
@@ -484,10 +439,9 @@ class NodeWizardModel(private val container: AppContainer, private val scope: Co
 
     fun qr() = container.platform.qrMatrix(shareLink)
 
-    /** Ends SSH and the Yandex window; drops the test connection of an unsaved profile. */
+    /** Ends SSH; drops the test connection of an unsaved profile. */
     fun close() {
         job?.cancel()
-        service.cancelDocument()
         service.close()
         val state = connection.state.value
         if (!saved && profile != null && state.profile?.id == profile?.id && state.isActive) connection.disconnect()
@@ -496,7 +450,6 @@ class NodeWizardModel(private val container: AppContainer, private val scope: Co
         privateKey = ""
         passphrase = ""
         sudoPassword = ""
-        yandexCookies = ""
     }
 
     /**
