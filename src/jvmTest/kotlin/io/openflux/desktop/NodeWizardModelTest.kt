@@ -259,7 +259,7 @@ class NodeWizardModelTest {
         assertEquals(WizardStep.Plan, wizard.step)
         val chosen = listOf(NodeTransport("mailru", "https://cloud.mail.ru/public/DEmN/ETbZW2MPY"), NodeTransport("cupsonline", "WyJyb29tLTEiXQ"))
         assertEquals(listOf(chosen), env.node.plannedTransports)
-        assertEquals(TransportType.MAILRU, wizard.primaryType)
+        assertEquals(TransportType.DIRECT, wizard.primaryType)
 
         // Turning the updater on asks the server again, and install says so.
         wizard.changeAutoUpdate(true)
@@ -319,7 +319,7 @@ class NodeWizardModelTest {
         wizard.install()
         advanceUntilIdle()
         assertEquals(WizardStep.Done, wizard.step, wizard.verifyFailed ?: wizard.error ?: "")
-        assertNull(wizard.primaryType)
+        assertEquals(TransportType.DIRECT, wizard.primaryType)
         assertTrue(wizard.primaryUp)
     }
 
@@ -356,7 +356,7 @@ class NodeWizardModelTest {
     @Test
     fun transportNames() {
         assertEquals("Direct", NodeTransports.describe(emptyList()))
-        assertEquals("Volga, Mail.ru и Direct", NodeTransports.describe(listOf(TransportType.VYANDEX, TransportType.MAILRU)))
+        assertEquals("Direct, Volga и Mail.ru", NodeTransports.describe(listOf(TransportType.VYANDEX, TransportType.MAILRU)))
         assertEquals("https://cloud.mail.ru/public/a1/b2", NodeTransports.cleanMailru(" https://cloud.mail.ru/public/a1/b2/?x#y "))
         assertNull(NodeTransports.cleanMailru("https://cloud.mail.ru.evil/public/a1/b2"))
     }
@@ -439,7 +439,7 @@ class NodeWizardModelTest {
                     name = name, negotiate = true, secret = key,
                     context = transports.firstOrNull { it.type != "cupsonline" }?.url ?: "http://#",
                     transports = transports.mapIndexed { i, t -> ShareTransport(type = t.type, url = t.url, priority = 100 - 10 * i) } +
-                        ShareTransport(type = "direct", dial = "$host:$port", priority = 50),
+                        ShareTransport(type = "direct", dial = "$host:$port", priority = 110),
                 ),
             )
 
@@ -455,7 +455,7 @@ class NodeWizardModelTest {
 
     private class FakeConnection(private val exitIp: String) : ConnectionService {
         /** The carrier the session runs on once connected. */
-        var active = "vyandex"
+        var active = "direct"
         /** How many exit address checks fail (502 from the core) before one works. */
         var failingChecks = 0
         var checks = 0

@@ -300,7 +300,7 @@ private fun ColumnScope.DocumentStep(model: NodeWizardModel) {
     SectionLabel("Транспорты")
     Note(
         "Можно выбрать несколько: если один перестанет работать, устройство перейдёт на следующий. " +
-            "Прямое подключение к серверу (Direct) есть всегда: это резерв и через него идёт проверка.",
+            "Прямое подключение к серверу (Direct) есть всегда и используется первым. Остальные каналы работают как резерв.",
     )
     Spacer(Modifier.height(AppTheme.spacing.s))
     val switchable = idle
@@ -383,7 +383,7 @@ private fun ColumnScope.PlanStep(model: NodeWizardModel) {
     AppCard(padding = 0.dp) {
         KeyValueRow("Канал", plan.channel.ifEmpty { model.channel?.id.orEmpty() })
         HorizontalRule()
-        KeyValueRow("Порт резервного канала", plan.port.toString())
+        KeyValueRow("Порт прямого канала", plan.port.toString())
         HorizontalRule()
         KeyValueRow("Транспорты", NodeTransports.describe(model.transportTypes))
         if (model.transportTypes.contains(TransportType.VYANDEX)) {
@@ -430,10 +430,8 @@ private fun ColumnScope.VerifyStep(model: NodeWizardModel) {
                 color = AppTheme.colors.textSecondary,
             )
         }
-        model.primaryType?.let { primary ->
-            Actions {
-                AppButton("Хватит ждать ${primary.shortLabel}", model::stopWaiting, style = ButtonStyle.Secondary)
-            }
+        Actions {
+            AppButton("Хватит ждать Direct", model::stopWaiting, style = ButtonStyle.Secondary)
         }
         return
     }
@@ -441,7 +439,7 @@ private fun ColumnScope.VerifyStep(model: NodeWizardModel) {
     val idle = model.busy == null
     model.channel?.let { channel ->
         Note(
-            if (model.installed) "Нода установлена на сервере как openflux-node@${channel.id}. Можно повторить проверку или удалить канал с сервера."
+            if (model.installed) "Нода установлена на сервере как cupol-reserve-node@${channel.id}. Можно повторить проверку или удалить канал с сервера."
             else "Канал ${channel.id} удалён с сервера.",
         )
     }
@@ -461,8 +459,7 @@ private fun ColumnScope.DoneStep(model: NodeWizardModel, onShowQr: () -> Unit, o
     val toaster = LocalToaster.current
     if (model.verifiedIp.isNotEmpty() && !model.primaryUp) {
         Banner(
-            "Сейчас работает резервный канал (прямое подключение к серверу). Канал через ${model.primaryType?.shortLabel.orEmpty()} ещё не поднялся" +
-                if (model.primaryType == TransportType.VYANDEX) ": когда нода попросит проверку, CUPOL Reserve покажет её, пройдите её." else ": CUPOL Reserve переключится на него, когда он заработает.",
+            "Соединение проверено через резервный канал. Прямой канал пока недоступен; CUPOL Reserve переключится на него после восстановления.",
             Tone.Warning,
             icon = Icons.Rounded.Warning,
         )

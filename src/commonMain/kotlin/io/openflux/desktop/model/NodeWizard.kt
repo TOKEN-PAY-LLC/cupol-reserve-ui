@@ -66,9 +66,9 @@ object NodeTransports {
     fun cleanMailru(url: String): String? =
         url.trim().replace(Regex("[?#].*$"), "").trimEnd('/').takeIf(MAILRU_URL::matches)
 
-    /** How the wizard names [types] for people, primary first: "Volga, Mail.ru и Direct". */
+    /** How the wizard names [types] for people, preferred carrier first. */
     fun describe(types: List<TransportType>): String {
-        val names = (types + TransportType.DIRECT).map { it.shortLabel }
+        val names = (listOf(TransportType.DIRECT) + types).map { it.shortLabel }
         return if (names.size == 1) names[0] else names.dropLast(1).joinToString(", ") + " и " + names.last()
     }
 }

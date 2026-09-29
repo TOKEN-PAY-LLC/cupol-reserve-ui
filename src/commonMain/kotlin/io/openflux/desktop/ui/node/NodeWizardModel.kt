@@ -105,7 +105,7 @@ class NodeWizardModel(private val container: AppContainer, private val scope: Co
     /** The server's core updater: one timer for every channel there. */
     var autoUpdate by mutableStateOf(false)
         private set
-    /** The carriers the plan was made for, primary first. */
+    /** The document carriers the plan was made for, in fallback order. */
     var transports by mutableStateOf<List<NodeTransport>>(emptyList())
         private set
     val transportTypes: List<TransportType> get() = transports.mapNotNull { TransportType.fromCli(it.type) }
@@ -305,8 +305,7 @@ class NodeWizardModel(private val container: AppContainer, private val scope: Co
     /**
      * Connects through the new node as a client and asks api.ipify.org
      * where the traffic leaves: it must be the server's address. Then waits
-     * for the primary carrier, which for a Yandex document may first need
-     * the node's own check (the app-wide captcha dialog shows it).
+     * for the preferred direct carrier after checking the exit address.
      */
     fun verify() {
         val candidate = profile ?: return
@@ -372,11 +371,11 @@ class NodeWizardModel(private val container: AppContainer, private val scope: Co
                 }
                 if (verifiedIp.isEmpty()) delay(POLL_MS)
             }
-            // Traffic may have gone through the direct carrier. Give the
-            // primary carrier the rest of the time to come up: a Yandex node
-            // may first need its own check, which the app-wide captcha dialog shows.
-            primaryType?.let { busy = "Жду канал через ${it.shortLabel}…" }
-            while (!stopWaitingForPrimary && container.platform.now() < deadline && !primaryLive()) {
+            // The tunnel may initially use a document fallback. Give the
+            // preferred direct carrier the rest of the time to come up.
+            busy = "Жду прямой канал…"
+            val preferredDeadline = minOf(deadline, container.platform.now() + 10_000L)
+            while (!stopWaitingForPrimary && container.platform.now() < preferredDeadline && !primaryLive()) {
                 if (connection.state.value.profile?.id != candidate.id) break
                 delay(POLL_MS)
             }
@@ -391,12 +390,11 @@ class NodeWizardModel(private val container: AppContainer, private val scope: Co
         }
     }
 
-    /** The highest-priority carrier; null for a direct-only channel. */
-    val primaryType: TransportType? get() = transportTypes.firstOrNull()
+    /** Direct is the highest-priority carrier for every channel. */
+    val primaryType: TransportType get() = TransportType.DIRECT
 
     private fun primaryLive(): Boolean {
-        val primary = primaryType ?: return true
-        return connection.traffic.value.activeTransport == primary.cliName
+        return connection.traffic.value.activeCarriers.contains(TransportType.DIRECT.cliName)
     }
 
     /** Stops waiting for the primary carrier and keeps what was proven so far. */
