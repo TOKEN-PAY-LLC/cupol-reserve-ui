@@ -5,6 +5,7 @@ import io.openflux.desktop.data.restrictToOwner
 import io.openflux.desktop.model.AppSettings
 import io.openflux.desktop.model.CaptchaPrompt
 import io.openflux.desktop.ui.BrowserPage
+import io.openflux.desktop.platform.MacElevation
 import io.openflux.desktop.platform.WindowsElevation
 import io.openflux.desktop.web.BrowserLog
 import io.openflux.desktop.model.ConnectionMode
@@ -33,6 +34,7 @@ import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.io.File
+import java.io.RandomAccessFile
 import java.nio.file.Files
 import java.net.InetSocketAddress
 import java.net.ProxySelector
@@ -86,6 +88,8 @@ class CoreConnectionService(
         val files: List<File>,
         val httpProxy: String?,
         val usesIpc: Boolean,
+        /** macOS full tunnel: the core runs as root, see [MacElevation]. */
+        val elevated: Elevated? = null,
         val jobs: MutableList<Job> = mutableListOf(),
     ) {
         @Volatile var ipc: CoreIpc? = null
@@ -96,12 +100,18 @@ class CoreConnectionService(
         @Volatile var bannerSeen = false
         /** The IPC socket never answered; status comes from the log instead. */
         @Volatile var ipcUnavailable = false
+        /** Reads a root core's output file ([elevated]). */
+        @Volatile var logJob: Job? = null
     }
+
+    /** A core started as root: its output file and the file that stops it. */
+    private class Elevated(val log: File, val stop: File)
 
     init {
         // A killed app leaves its run files behind, the key among them. One
         // instance runs at a time (main holds a lock), so none are in use.
-        AppDirs.runtime.listFiles()?.filter { it.name.startsWith("key-") || it.name.startsWith("profile-") }
+        // A root core left by a killed app stopped when the app was gone.
+        AppDirs.runtime.listFiles()?.filter { f -> RUN_FILES.any { f.name.startsWith(it) } }
             ?.forEach { runCatching { it.delete() } }
         // A crash while the system proxy pointed at OpenFlux leaves Windows
         // without Internet; put the saved values back on the next start.
@@ -150,11 +160,12 @@ class CoreConnectionService(
             val confFile = File(runtime, "profile-$tag.conf")
             // AF_UNIX sockets do not work under every folder on Windows
             // (AppData\Roaming and \Local fail with EINVAL); the temp folder does.
-            val ipcSocket = if (profile.session) {
+            // Every profile gets one: the speed counters read the core's status.
+            val ipcSocket = run {
                 val dir = Files.createTempDirectory("openflux-ipc-").toFile()
                 files += dir
                 File(dir, "core.sock").also { files += it }
-            } else null
+            }
             val paths = CorePaths(
                 keyFile = keyFile?.absolutePath,
                 confFile = confFile.absolutePath,
@@ -168,17 +179,31 @@ class CoreConnectionService(
                 files += confFile
             }
             log(LogLevel.Info, "Запуск ядра: ${profile.name} (${current.mode.label})")
-            val process = ProcessBuilder(listOf(core.absolutePath) + launch.arguments)
+            var command = listOf(core.absolutePath) + launch.arguments
+            val elevated = if (current.fullTunnel && current.mode == ConnectionMode.Client && MacElevation.mac && !MacElevation.root) {
+                val stamp = System.currentTimeMillis()
+                val out = File(runtime, "core-$tag-$stamp.log").apply { writeText("") }
+                restrictToOwner(out)
+                files += out
+                // Not among the run's files: a core that outlived its stop
+                // (the wait below ran out) must still find it.
+                val stop = File(runtime, "stop-$tag-$stamp")
+                command = MacElevation.command(command, out, stop, ProcessHandle.current().pid())
+                log(LogLevel.Info, "macOS спросит пароль администратора: ядру нужен root для интерфейса utun и маршрутов")
+                Elevated(out, stop)
+            } else null
+            val process = ProcessBuilder(command)
                 .directory(AppDirs.runtime)
                 .redirectErrorStream(true)
                 .start()
-            val newRun = Run(profile, current, process, files, launch.httpProxyAddress, launch.usesIpc)
+            val newRun = Run(profile, current, process, files, launch.httpProxyAddress, launch.usesIpc, elevated)
             synchronized(lock) { run = newRun }
             _socksAddress.value = launch.socksAddress
             _state.value = ConnectionState.Connecting(profile, current.mode, System.currentTimeMillis())
             newRun.jobs += scope.launch { readOutput(newRun) }
+            if (elevated != null) newRun.logJob = scope.launch { followLog(newRun, elevated.log) }.also { newRun.jobs += it }
             newRun.jobs += scope.launch { awaitExit(newRun) }
-            if (ipcSocket != null) newRun.jobs += scope.launch { readIpc(newRun, ipcSocket) }
+            newRun.jobs += scope.launch { readIpc(newRun, ipcSocket) }
         } catch (e: Exception) {
             files.sortedBy { it.isDirectory }.forEach { it.delete() }
             val message = e.message ?: "Не удалось запустить ядро"
@@ -187,9 +212,11 @@ class CoreConnectionService(
         }
     }
 
-    /** What the core's Wintun client needs, said before it fails on its own. */
+    /** What the core's tun client needs, said before it fails on its own. */
     private fun checkFullTunnel(core: File) {
-        check(isWindows) { "Режим «Весь трафик» пока есть только в Windows" }
+        // macOS: root comes with each start (MacElevation).
+        if (MacElevation.mac) return
+        check(isWindows) { "Режим «Весь трафик» пока есть только в Windows и macOS" }
         check(WindowsElevation.elevated) {
             "Режиму «Весь трафик» нужны права администратора: перезапустите OpenFlux от имени администратора (кнопка на главной)"
         }
@@ -203,19 +230,58 @@ class CoreConnectionService(
             for (raw in lines) {
                 val line = raw.trimEnd()
                 if (line.isEmpty()) continue
-                val level = levelOf(line)
-                log(level, line)
-                friendlyProblem(line)?.let { run.lastProblem = it }
-                if (!run.stopping) SHARE_LINK.find(line)?.let { _exitShareLink.value = it.value }
-                // Without IPC (classic profiles) the core's start banner is
-                // the only sign it is up.
-                if (line.contains("Running as CLIENT") || line.contains("Running as EXIT NODE")) {
-                    run.bannerSeen = true
-                    if (!run.usesIpc || run.ipcUnavailable) markConnected(run)
+                // osascript's own words: the password dialog was closed.
+                if (run.elevated != null && MacElevation.cancelled(line)) {
+                    run.lastProblem = "Пароль администратора не введён: без прав root режим «Весь трафик» не запускается"
+                    continue
                 }
-                if (run.settings.mode == ConnectionMode.Exit && line.contains("Running as EXIT NODE")) markConnected(run)
+                onCoreLine(run, line)
             }
         }
+    }
+
+    /** A root core writes to a file (the app cannot read its pipe); follows it until the core ends. */
+    private fun followLog(run: Run, file: File) {
+        RandomAccessFile(file, "r").use { input ->
+            val pending = java.io.ByteArrayOutputStream()
+            val buffer = ByteArray(8192)
+            while (true) {
+                val alive = run.process.isAlive
+                while (true) {
+                    val n = input.read(buffer)
+                    if (n <= 0) break
+                    for (i in 0 until n) {
+                        val b = buffer[i]
+                        if (b == '\n'.code.toByte()) {
+                            val line = pending.toString(Charsets.UTF_8).trimEnd()
+                            pending.reset()
+                            if (line.isNotEmpty()) onCoreLine(run, line)
+                        } else {
+                            pending.write(b.toInt())
+                        }
+                    }
+                }
+                // One more read after the core ended picks up its last lines.
+                if (!alive) break
+                Thread.sleep(150)
+            }
+            pending.toString(Charsets.UTF_8).trimEnd().takeIf { it.isNotEmpty() }?.let { onCoreLine(run, it) }
+        }
+    }
+
+    private fun onCoreLine(run: Run, line: String) {
+        val level = levelOf(line)
+        log(level, line)
+        friendlyProblem(line)?.let { run.lastProblem = it }
+        if (!run.stopping) SHARE_LINK.find(line)?.let { _exitShareLink.value = it.value }
+        // Without a Session's IPC status (classic profiles) the core's start
+        // banner is the only sign it is up; the tun client says it once the
+        // default route is in the tunnel.
+        if (line.contains("Running as CLIENT") || line.contains("Running as EXIT NODE") || line.contains("Tunnel active")) {
+            run.bannerSeen = true
+            if (!run.usesIpc || run.ipcUnavailable) markConnected(run)
+        }
+        if (run.settings.mode == ConnectionMode.Exit && line.contains("Running as EXIT NODE")) markConnected(run)
     }
 
     private fun readIpc(run: Run, socket: File) {
@@ -253,7 +319,8 @@ class CoreConnectionService(
                             val down = if (lastAt == 0L) 0 else ((status.bytesIn - lastIn) / seconds).toLong().coerceAtLeast(0)
                             lastIn = status.bytesIn; lastOut = status.bytesOut; lastAt = now
                             _traffic.value = TrafficStats(up, down, status.bytesOut, status.bytesIn, status.active, status.activeAll, live = true)
-                            if (run.settings.mode == ConnectionMode.Client) {
+                            // Classic profiles: the traffic only, the log tells the state.
+                            if (run.settings.mode == ConnectionMode.Client && run.usesIpc) {
                                 if (status.connected) markConnected(run) else markReconnecting(run)
                             }
                         }
@@ -269,8 +336,10 @@ class CoreConnectionService(
         }
     }
 
-    private fun awaitExit(run: Run) {
+    private suspend fun awaitExit(run: Run) {
         val code = run.process.waitFor()
+        // The last lines of a root core's file, read before it is deleted.
+        run.logJob?.join()
         cleanup(run)
         if (run.stopping) return
         val message = run.lastProblem ?: "Ядро остановилось (код $code)"
@@ -303,8 +372,7 @@ class CoreConnectionService(
         run.stopping = true
         _state.value = ConnectionState.Disconnecting(run.profile)
         restoreSystemProxy()
-        killTree(run.process)
-        run.process.waitFor(5, TimeUnit.SECONDS)
+        stopCore(run)
         cleanup(run)
         run.jobs.forEach { it.cancel() }
         if (!restart) {
@@ -326,6 +394,23 @@ class CoreConnectionService(
         pendingCaptcha = null
         captchaBrowser.close()
         restoreSystemProxy()
+    }
+
+    /**
+     * Stops the core. A root core is asked through its stop file and given
+     * time to put the routes back; killing osascript would not reach it.
+     */
+    private fun stopCore(run: Run) {
+        val elevated = run.elevated
+        if (elevated != null && run.process.isAlive) {
+            runCatching { elevated.stop.createNewFile() }
+            if (!run.process.waitFor(ROOT_STOP_WAIT_S, TimeUnit.SECONDS)) {
+                log(LogLevel.Warning, "Ядро с правами root не остановилось за $ROOT_STOP_WAIT_S с; оно остановится, когда закроется OpenFlux")
+            }
+        }
+        killTree(run.process)
+        run.process.waitFor(5, TimeUnit.SECONDS)
+        if (elevated != null && !run.process.isAlive) elevated.stop.delete()
     }
 
     private fun killTree(process: Process) {
@@ -467,7 +552,7 @@ class CoreConnectionService(
         val current = synchronized(lock) { run }
         if (current != null) {
             current.stopping = true
-            killTree(current.process)
+            stopCore(current)
             cleanup(current)
         }
         restoreSystemProxy()
@@ -478,6 +563,10 @@ class CoreConnectionService(
         private const val MAX_LOG_LINES = 5000
         /** How long the core has to open its IPC socket before the log takes over. */
         private const val IPC_WAIT_MS = 8000L
+        /** How long a root core has to take its routes down after the stop file appears. */
+        private const val ROOT_STOP_WAIT_S = 10L
+        /** Files a run leaves in AppDirs.runtime, removed at start. */
+        private val RUN_FILES = listOf("key-", "profile-", "core-", "stop-")
         private val SHARE_LINK = Regex("""openflux://v1/[A-Za-z0-9_-]+""")
         private val IP = Regex("""^[0-9a-fA-F:.]{3,45}$""")
         /** The core's --debug lines carry microseconds: "23:33:27.443294 [VOLGA]". */
@@ -502,6 +591,7 @@ class CoreConnectionService(
                     "Порт уже занят другой программой. Смените порт в настройках"
                 lower.contains("read encryption key file") -> "Ядро не смогло прочитать ключ шифрования"
                 lower.contains("ipc listen") -> "Ядро не смогло открыть канал связи с приложением"
+                lower.contains("setup utun") || lower.contains("open utun") -> "Не удалось поднять интерфейс utun: ${line.substringAfter("utun").trim(':', ' ').take(160)}"
                 lower.contains("--config:") -> "Ядро не приняло конфигурацию: ${line.substringAfter("--config:").trim()}"
                 lower.contains("failed to start transport") -> "Транспорт не запустился: ${line.substringAfter("transport:").trim().take(160)}"
                 lower.contains("fatal") || lower.contains("log.fatal") -> line.substringAfter(": ").take(200)

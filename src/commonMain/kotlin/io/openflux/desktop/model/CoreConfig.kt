@@ -14,6 +14,7 @@ data class CoreLaunch(
     val conf: String?,
     val socksAddress: String?,
     val httpProxyAddress: String?,
+    /** The core's IPC status says whether it reaches the exit (Sessions); otherwise its log does. */
     val usesIpc: Boolean,
 )
 
@@ -123,6 +124,9 @@ object CoreConfig {
             }
             if (paths.keyFile != null) add("--encryption-key-file=${paths.keyFile}")
             add("--cookie-store=${paths.cookieStore}")
+            // Traffic totals for the speed counters; the state still comes
+            // from the log (usesIpc = false).
+            if (paths.ipcSocket != null) add("--ipc-socket=${paths.ipcSocket}")
             if (exit) {
                 add("--share")
                 if (settings.exitShareHost.isNotBlank()) add("--share-host=${settings.exitShareHost.trim()}")

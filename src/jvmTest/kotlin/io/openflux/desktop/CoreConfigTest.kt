@@ -117,10 +117,11 @@ class CoreConfigTest {
             listOf(
                 "--role=client", "--inbound=socks5", "--socks5=127.0.0.1:1080", "--http-proxy=127.0.0.1:1081",
                 "--transport=yandex", "--codec=batched", "--url=https://disk.yandex.ru/i/x",
-                "--cookie-store=C:/cfg/cookies/p.json",
+                "--cookie-store=C:/cfg/cookies/p.json", "--ipc-socket=C:/rt/ipc.sock",
             ),
             launch.arguments,
         )
+        // IPC brings the traffic totals; the state still comes from the log.
         assertFalse(launch.usesIpc)
     }
 
@@ -133,7 +134,7 @@ class CoreConfigTest {
             listOf(
                 "--role=exit", "--mode=l4",
                 "--transport=yandex", "--codec=batched", "--url=https://disk.yandex.ru/i/x",
-                "--encryption-key-file=C:/rt/key", "--cookie-store=C:/cfg/cookies/p.json",
+                "--encryption-key-file=C:/rt/key", "--cookie-store=C:/cfg/cookies/p.json", "--ipc-socket=C:/rt/ipc.sock",
                 "--share", "--share-host=my.host", "--debug=1",
             ),
             launch.arguments,

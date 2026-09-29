@@ -77,7 +77,7 @@ import org.jetbrains.compose.resources.painterResource
 
 enum class SettingsCategory(val title: String, val subtitle: String, val icon: DrawableResource) {
     Connection("Подключение", "Режим, порты, автозапуск", AppIcons.Swap),
-    SystemProxy("Системный прокси", "Весь трафик Windows через OpenFlux", AppIcons.Routing),
+    SystemProxy("Системный прокси", "Весь трафик компьютера через OpenFlux", AppIcons.Routing),
     Core("Ядро OpenFlux", "Файл ядра и подробный журнал", AppIcons.Code),
     Interface("Интерфейс", "Тема, трей, журнал", AppIcons.DarkMode),
     About("О программе", "Версии и репозитории", AppIcons.Info);
@@ -296,16 +296,18 @@ private fun SystemProxySettings(model: SettingsScreenModel) {
         VpnSettings(model, settings)
         return
     }
-    if (!model.container.platform.systemProxySupported) {
-        Banner("Системный прокси пока поддерживается только в Windows. Укажите SOCKS5 127.0.0.1:${settings.socksPort} в настройках нужных программ.", Tone.Neutral)
-        return
-    }
-    if (model.container.platform.fullTunnelSupported) {
+    val platform = model.container.platform
+    if (platform.fullTunnelSupported) {
+        val how = if (platform.fullTunnelAsksPassword) {
+            "Интерфейс utun забирает весь трафик, включая игры и UDP. Ядру нужен root: при каждом подключении macOS спросит пароль администратора."
+        } else {
+            "Адаптер Wintun забирает весь трафик, включая игры и UDP; системный прокси тогда не нужен. " +
+                "Нужны права администратора" + if (platform.elevated) "." else ": запустите OpenFlux от имени администратора."
+        }
         AppCard(padding = AppTheme.spacing.s) {
             SwitchRow(
                 "Весь трафик компьютера (TUN)",
-                "Адаптер Wintun забирает весь трафик, включая игры и UDP; системный прокси тогда не нужен. " +
-                    "Нужны права администратора" + if (model.container.platform.elevated) "." else ": запустите OpenFlux от имени администратора.",
+                how,
                 settings.fullTunnel,
                 { v ->
                     model.update { it.copy(fullTunnel = v) }
@@ -315,6 +317,14 @@ private fun SystemProxySettings(model: SettingsScreenModel) {
                 },
             )
         }
+    }
+    if (!platform.systemProxySupported) {
+        Banner(
+            "Системный прокси пока поддерживается только в Windows. Укажите SOCKS5 127.0.0.1:${settings.socksPort} в настройках нужных программ" +
+                if (platform.fullTunnelSupported) " или включите режим TUN выше." else ".",
+            Tone.Neutral,
+        )
+        return
     }
     AppCard(padding = AppTheme.spacing.s) {
         SwitchRow(
