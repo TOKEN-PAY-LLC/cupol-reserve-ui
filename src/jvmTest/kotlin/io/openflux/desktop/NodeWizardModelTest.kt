@@ -10,6 +10,8 @@ import io.openflux.desktop.model.LogLevel
 import io.openflux.desktop.model.LogLine
 import io.openflux.desktop.model.NewChannel
 import io.openflux.desktop.model.NodePlan
+import io.openflux.desktop.model.NodeTransport
+import io.openflux.desktop.model.NodeTransports
 import io.openflux.desktop.model.NodeServers
 import io.openflux.desktop.model.NodeWizardException
 import io.openflux.desktop.model.Profile
@@ -27,7 +29,6 @@ import io.openflux.desktop.service.PlatformServices
 import io.openflux.desktop.service.ProfileRepository
 import io.openflux.desktop.service.SettingsRepository
 import io.openflux.desktop.model.NodeDocuments
-import io.openflux.desktop.model.YandexDocument
 import io.openflux.desktop.ui.BrowserPage
 import io.openflux.desktop.ui.node.NodeWizardModel
 import io.openflux.desktop.ui.node.WizardStep
@@ -78,7 +79,7 @@ class NodeWizardModelTest {
         wizard.install()
         advanceUntilIdle()
         assertEquals(WizardStep.Done, wizard.step, wizard.verifyFailed ?: wizard.error ?: "")
-        assertEquals(listOf("of-test12", docUrl, "31337", "ssh-pass", ""), env.node.applied)
+        assertEquals(listOf("of-test12", "vyandex=$docUrl", "31337", "autoUpdate=true", "ssh-pass"), env.node.applied)
         assertEquals(serverIp, wizard.verifiedIp)
         assertTrue(wizard.primaryUp)
         assertTrue(wizard.unsaved)
@@ -178,48 +179,6 @@ class NodeWizardModelTest {
     }
 
     @Test
-    fun createdDocumentHandsTheSignInToTheNode() = runTest {
-        val env = Env()
-        val wizard = NodeWizardModel(env.container, this)
-        env.settings.update { it.copy(knownHostKeys = mapOf("$serverIp:22" to "SHA256:new")) }
-        wizard.host = serverIp
-        wizard.password = "p"
-        wizard.connect()
-        advanceUntilIdle()
-        wizard.createDocument()
-        advanceUntilIdle()
-        // The default name "Нода <server>" stays off Disk: only the time and random letters.
-        assertTrue(Regex("^[0-9]{8}-[0-9]{4}-[a-z0-9]{4}$").matches(env.node.documentName), env.node.documentName)
-        assertEquals(WizardStep.Plan, wizard.step)
-        assertEquals(docUrl, wizard.documentUrl)
-        assertTrue(wizard.nodeSignedIn)
-        assertEquals(listOf(true), env.node.plannedWithCookies)
-        wizard.install()
-        advanceUntilIdle()
-        assertEquals("Session_id=abc; yandexuid=1", env.node.applied.last())
-        assertFalse(wizard.nodeSignedIn)
-    }
-
-    @Test
-    fun anotherDocumentDropsTheSignIn() = runTest {
-        val env = Env()
-        val wizard = NodeWizardModel(env.container, this)
-        env.settings.update { it.copy(knownHostKeys = mapOf("$serverIp:22" to "SHA256:new")) }
-        wizard.host = serverIp
-        wizard.password = "p"
-        wizard.connect()
-        advanceUntilIdle()
-        wizard.createDocument()
-        advanceUntilIdle()
-        wizard.back()
-        wizard.documentInput = "https://disk.yandex.ru/edit/d/ANOTHERANOTHERANOTHER"
-        wizard.checkDocument()
-        advanceUntilIdle()
-        assertFalse(wizard.nodeSignedIn)
-        assertEquals(listOf(true, false), env.node.plannedWithCookies)
-    }
-
-    @Test
     fun droppedConnectionIsOpenedAgainForThePlan() = runTest {
         val env = Env()
         val wizard = NodeWizardModel(env.container, this)
@@ -229,14 +188,15 @@ class NodeWizardModelTest {
         wizard.connect()
         advanceUntilIdle()
         assertEquals(1, env.node.connects)
-        // SSH dropped while the user was signing in to Yandex.
+        // SSH dropped while the user was looking for the document link.
         env.node.dropped = true
-        wizard.createDocument()
+        wizard.documentInput = docUrl
+        wizard.checkDocument()
         advanceUntilIdle()
         assertNull(wizard.error)
         assertEquals(WizardStep.Plan, wizard.step)
         assertEquals(2, env.node.connects)
-        assertEquals(listOf(true), env.node.plannedWithCookies)
+        assertEquals(1, env.node.plannedTransports.size)
     }
 
     @Test
@@ -280,6 +240,128 @@ class NodeWizardModelTest {
     }
 
     @Test
+    fun severalTransportsWithoutYandex() = runTest {
+        val env = Env()
+        env.connection.active = "mailru"
+        val wizard = NodeWizardModel(env.container, this)
+        env.settings.update { it.copy(knownHostKeys = mapOf("$serverIp:22" to "SHA256:new")) }
+        wizard.host = serverIp
+        wizard.password = "p"
+        wizard.connect()
+        advanceUntilIdle()
+        wizard.useVolga = false
+        wizard.useMailru = true
+        wizard.useCups = true
+        wizard.mailruInput = "https://cloud.mail.ru/public/DEmN/ETbZW2MPY/?x=1"
+        wizard.next()
+        advanceUntilIdle()
+        assertNull(wizard.error)
+        assertEquals(WizardStep.Plan, wizard.step)
+        val chosen = listOf(NodeTransport("mailru", "https://cloud.mail.ru/public/DEmN/ETbZW2MPY"), NodeTransport("cupsonline", "WyJyb29tLTEiXQ"))
+        assertEquals(listOf(chosen), env.node.plannedTransports)
+        assertEquals(TransportType.MAILRU, wizard.primaryType)
+
+        // Turning the updater off asks the server again, and install says so.
+        wizard.changeAutoUpdate(false)
+        advanceUntilIdle()
+        assertEquals(listOf(true, false), env.node.plannedAutoUpdate)
+        wizard.install()
+        advanceUntilIdle()
+        assertEquals(WizardStep.Done, wizard.step, wizard.verifyFailed ?: wizard.error ?: "")
+        assertEquals(
+            listOf("of-test12", "mailru=https://cloud.mail.ru/public/DEmN/ETbZW2MPY cupsonline=WyJyb29tLTEiXQ", "31337", "autoUpdate=false", "p"),
+            env.node.applied,
+        )
+        assertTrue(wizard.primaryUp)
+        val saved = wizard.save()!!
+        assertEquals(listOf(TransportType.MAILRU, TransportType.CUPSONLINE, TransportType.DIRECT), saved.carriers.map { it.type })
+        assertEquals(1, env.node.roomsCreated)
+    }
+
+    @Test
+    fun goingBackKeepsTheRooms() = runTest {
+        val env = Env()
+        val wizard = NodeWizardModel(env.container, this)
+        env.settings.update { it.copy(knownHostKeys = mapOf("$serverIp:22" to "SHA256:new")) }
+        wizard.host = serverIp
+        wizard.password = "p"
+        wizard.connect()
+        advanceUntilIdle()
+        wizard.useCups = true
+        wizard.documentInput = docUrl
+        wizard.checkDocument()
+        advanceUntilIdle()
+        assertEquals(WizardStep.Plan, wizard.step)
+        wizard.back()
+        wizard.useVolga = false
+        wizard.next()
+        advanceUntilIdle()
+        assertEquals(WizardStep.Plan, wizard.step)
+        assertEquals(2, env.node.plannedTransports.size)
+        assertEquals(1, env.node.roomsCreated)
+        assertEquals(listOf(NodeTransport("cupsonline", "WyJyb29tLTEiXQ")), env.node.plannedTransports.last())
+    }
+
+    @Test
+    fun directOnlyNeedsNothingElse() = runTest {
+        val env = Env()
+        env.connection.active = "direct"
+        val wizard = NodeWizardModel(env.container, this)
+        env.settings.update { it.copy(knownHostKeys = mapOf("$serverIp:22" to "SHA256:new")) }
+        wizard.host = serverIp
+        wizard.password = "p"
+        wizard.connect()
+        advanceUntilIdle()
+        wizard.useVolga = false
+        wizard.next()
+        advanceUntilIdle()
+        assertEquals(listOf(emptyList()), env.node.plannedTransports)
+        wizard.install()
+        advanceUntilIdle()
+        assertEquals(WizardStep.Done, wizard.step, wizard.verifyFailed ?: wizard.error ?: "")
+        assertNull(wizard.primaryType)
+        assertTrue(wizard.primaryUp)
+    }
+
+    @Test
+    fun badMailruLinkOrMissingYandexDocumentStayOnTransports() = runTest {
+        val env = Env()
+        val wizard = NodeWizardModel(env.container, this)
+        env.settings.update { it.copy(knownHostKeys = mapOf("$serverIp:22" to "SHA256:new")) }
+        wizard.host = serverIp
+        wizard.password = "p"
+        wizard.connect()
+        advanceUntilIdle()
+        wizard.next()
+        advanceUntilIdle()
+        assertEquals(WizardStep.Document, wizard.step)
+        assertTrue(wizard.error!!.contains("документ Яндекса"), wizard.error)
+
+        wizard.useMailru = true
+        wizard.mailruInput = "https://cloud.mail.ru/home/doc.docx"
+        wizard.documentInput = docUrl
+        wizard.checkDocument()
+        advanceUntilIdle()
+        assertEquals(WizardStep.Document, wizard.step)
+        assertTrue(wizard.error!!.startsWith("Нужна публичная ссылка Mail.ru"), wizard.error)
+        // The Yandex document is kept: fixing the link is enough.
+        assertEquals(docUrl, wizard.documentUrl)
+        wizard.mailruInput = "https://cloud.mail.ru/public/DEmN/ETbZW2MPY"
+        wizard.next()
+        advanceUntilIdle()
+        assertEquals(WizardStep.Plan, wizard.step)
+        assertEquals(listOf("vyandex", "mailru"), env.node.plannedTransports.last().map { it.type })
+    }
+
+    @Test
+    fun transportNames() {
+        assertEquals("Direct", NodeTransports.describe(emptyList()))
+        assertEquals("Volga, Mail.ru и Direct", NodeTransports.describe(listOf(TransportType.VYANDEX, TransportType.MAILRU)))
+        assertEquals("https://cloud.mail.ru/public/a1/b2", NodeTransports.cleanMailru(" https://cloud.mail.ru/public/a1/b2/?x#y "))
+        assertNull(NodeTransports.cleanMailru("https://cloud.mail.ru.evil/public/a1/b2"))
+    }
+
+    @Test
     fun servers() {
         val a = KnownServer("a", 22, "root")
         val b = KnownServer("b", 22, "root")
@@ -289,22 +371,6 @@ class NodeWizardModelTest {
         assertNull(NodeServers.port("0"))
         assertNull(NodeServers.port("70000"))
         assertEquals(2222, NodeServers.port(" 2222 "))
-        assertTrue(NodeDocuments.signedIn("yandexuid=1; Session_id=abc; L=2"))
-        assertFalse(NodeDocuments.signedIn("yandexuid=1; sessionid2=abc"))
-    }
-
-    /** The document is named after the node and the time, never "openflux", and never after the server's address. */
-    @Test
-    fun documentNames() {
-        val at = 1790477460000L // 2026-09-27 02:51 UTC
-        val named = NodeDocuments.fileName("Моя нода №1", "203.0.113.10", at, kotlin.random.Random(1))
-        assertTrue(Regex("^moya-noda-1-20260927-0251-[a-z0-9]{4}$").matches(named), named)
-        val default = NodeDocuments.fileName("Нода 203.0.113.10", "203.0.113.10", at, kotlin.random.Random(1))
-        assertTrue(Regex("^20260927-0251-[a-z0-9]{4}$").matches(default), default)
-        assertTrue(Regex("^20260927-0251-[a-z0-9]{4}$").matches(NodeDocuments.fileName("  ", "h", at, kotlin.random.Random(2))))
-        val long = NodeDocuments.fileName("x".repeat(100), "h", at, kotlin.random.Random(3))
-        assertTrue(Regex("^[a-z0-9-]{1,64}$").matches(long) && long.startsWith("x".repeat(24) + "-"), long)
-        assertFalse("openflux" in NodeDocuments.fileName("OpenFlux", "h", at, kotlin.random.Random(4)))
     }
 
     private class Env(exitIp: String = "203.0.113.10", sudoFails: Boolean = false) {
@@ -322,8 +388,6 @@ class NodeWizardModelTest {
         /** The SSH connection is gone: calls fail until the next connect. */
         var dropped = false
         var planError: String? = null
-        val plannedWithCookies = mutableListOf<Boolean>()
-        var documentName = ""
         var closed = false
         private val codec = FakeShareLinkCodec()
 
@@ -336,41 +400,50 @@ class NodeWizardModelTest {
 
         override suspend fun newChannel() = NewChannel("of-test12", "ab".repeat(32))
 
-        override suspend fun plan(channel: String, withCookies: Boolean): NodePlan {
+        val plannedTransports = mutableListOf<List<NodeTransport>>()
+        val plannedAutoUpdate = mutableListOf<Boolean>()
+        var roomsCreated = 0
+
+        override suspend fun plan(channel: String, transports: List<NodeTransport>, autoUpdate: Boolean): NodePlan {
             if (dropped) throw NodeWizardException("скрипт установки не ответил: ")
             planError?.let { throw NodeWizardException(it) }
-            plannedWithCookies += withCookies
+            plannedTransports += transports
+            plannedAutoUpdate += autoUpdate
             return NodePlan(channel = channel, port = 31337, actions = listOf("Установить ядро"))
         }
 
-        override suspend fun apply(channel: NewChannel, documentUrl: String, port: Int, sudoPassword: String, cookieHeader: String) {
+        override suspend fun apply(
+            channel: NewChannel,
+            transports: List<NodeTransport>,
+            port: Int,
+            autoUpdate: Boolean,
+            sudoPassword: String,
+        ) {
             if (dropped) throw NodeWizardException("не удалось передать конфигурацию на сервер")
             if (sudoFails) throw NodeWizardException("sudo не принял пароль", sudo = true)
-            applied += listOf(channel.id, documentUrl, port.toString(), sudoPassword, cookieHeader)
+            applied += listOf(channel.id, transports.joinToString(" ") { "${it.type}=${it.url}" }, port.toString(),
+                "autoUpdate=$autoUpdate", sudoPassword)
+        }
+
+        override suspend fun createCupsRooms(): String {
+            roomsCreated++
+            return "WyJyb29tLTEiXQ"
         }
 
         override suspend fun remove(channel: String, sudoPassword: String) = Unit
         override suspend fun checkDocument(documentUrl: String) = Unit
 
-        override suspend fun shareLink(name: String, documentUrl: String, key: String, host: String, port: Int) =
+        override suspend fun shareLink(name: String, key: String, host: String, port: Int, transports: List<NodeTransport>) =
             codec.encode(
                 ShareConfig(
-                    name = name, negotiate = true, secret = key, context = documentUrl,
-                    transports = listOf(
-                        ShareTransport(type = "vyandex", url = documentUrl, priority = 100),
+                    name = name, negotiate = true, secret = key,
+                    context = transports.firstOrNull { it.type != "cupsonline" }?.url ?: "http://#",
+                    transports = transports.mapIndexed { i, t -> ShareTransport(type = t.type, url = t.url, priority = 100 - 10 * i) } +
                         ShareTransport(type = "direct", dial = "$host:$port", priority = 50),
-                    ),
                 ),
             )
 
         override suspend fun resolve(host: String) = setOf(host)
-        override val documentPage: StateFlow<BrowserPage?> = MutableStateFlow(null)
-        override suspend fun createDocument(fileName: String, onStep: (String) -> Unit): YandexDocument {
-            documentName = fileName
-            onStep("Войдите в аккаунт Яндекса")
-            return YandexDocument("https://disk.yandex.ru/edit/d/abcdefghijklmnopqrstuvwxyz", "Session_id=abc; yandexuid=1")
-        }
-        override fun cancelDocument() = Unit
         override fun close() { closed = true }
 
         val notes = mutableListOf<String>()
@@ -381,6 +454,8 @@ class NodeWizardModelTest {
     }
 
     private class FakeConnection(private val exitIp: String) : ConnectionService {
+        /** The carrier the session runs on once connected. */
+        var active = "vyandex"
         /** How many exit address checks fail (502 from the core) before one works. */
         var failingChecks = 0
         var checks = 0
@@ -396,7 +471,7 @@ class NodeWizardModelTest {
         override fun connect(profile: Profile) {
             state.value = ConnectionState.Connected(profile, ConnectionMode.Client, 0)
             exitAddress.value = check()
-            traffic.value = TrafficStats(activeTransport = "vyandex", live = true)
+            traffic.value = TrafficStats(activeTransport = active, live = true)
         }
 
         override fun disconnect() {

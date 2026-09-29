@@ -9,12 +9,12 @@ import io.openflux.desktop.model.LogLevel
 import io.openflux.desktop.model.LogLine
 import io.openflux.desktop.model.NewChannel
 import io.openflux.desktop.model.NodePlan
+import io.openflux.desktop.model.NodeTransport
 import io.openflux.desktop.model.ServerProbe
 import io.openflux.desktop.model.SshTarget
 import io.openflux.desktop.model.Profile
 import io.openflux.desktop.model.ShareLinkCodec
 import io.openflux.desktop.model.TrafficStats
-import io.openflux.desktop.model.YandexDocument
 import io.openflux.desktop.ui.BrowserPage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -121,35 +121,35 @@ interface NodeWizardService {
     /** SSH in, download the pinned installer and look at the server. */
     suspend fun connect(target: SshTarget): ServerProbe
     suspend fun newChannel(): NewChannel
-    /** What installing [channel] would change; port 0 lets the server pick. */
-    suspend fun plan(channel: String, withCookies: Boolean): NodePlan
-    /** Install and start the channel. [cookieHeader] "" leaves the node signed out. */
-    suspend fun apply(channel: NewChannel, documentUrl: String, port: Int, sudoPassword: String, cookieHeader: String)
+    /**
+     * What installing [channel] with [transports] (besides direct) would
+     * change; the server picks the port. [autoUpdate] turns the server's
+     * core updater on or off.
+     */
+    suspend fun plan(channel: String, transports: List<NodeTransport>, autoUpdate: Boolean): NodePlan
+    /** Install and start the channel. */
+    suspend fun apply(
+        channel: NewChannel,
+        transports: List<NodeTransport>,
+        port: Int,
+        autoUpdate: Boolean,
+        sudoPassword: String,
+    )
     suspend fun remove(channel: String, sudoPassword: String)
-    /** Whether the node can use the document (edit by link), as an anonymous visitor. */
+    /** Whether the node can use the Yandex document (edit by link), as an anonymous visitor. */
     suspend fun checkDocument(documentUrl: String)
-    /** The channel's `openflux://` link: the document, direct to host:port as backup. */
-    suspend fun shareLink(name: String, documentUrl: String, key: String, host: String, port: Int): String
+    /** New cups.online rooms for the channel: the packed list the node and its link take. */
+    suspend fun createCupsRooms(): String
+    /** The channel's `openflux://` link: [transports], then direct to host:port as the backup. */
+    suspend fun shareLink(name: String, key: String, host: String, port: Int, transports: List<NodeTransport>): String
     /** The addresses [host] resolves to, to compare with the tunnel's exit. */
     suspend fun resolve(host: String): Set<String>
-
-    /** The Yandex page while [createDocument] runs. */
-    val documentPage: StateFlow<BrowserPage?>
 
     /** This attempt's trace: every SSH/RPC call and the wizard's own step narration, for the Logs tab. */
     val logs: StateFlow<List<LogLine>>
     fun clearLogs()
     /** Adds a line to [logs] from outside (the wizard model's own step narration). */
     fun note(text: String, level: LogLevel = LogLevel.Info)
-
-    /**
-     * Opens Yandex in the built-in browser (downloaded on first use) for the
-     * user to sign in, then creates /openflux/[fileName] on their Disk with
-     * edit access by link. [onStep] reports progress. The sign-in is wiped
-     * from the browser afterwards; only the returned cookies keep it.
-     */
-    suspend fun createDocument(fileName: String, onStep: (String) -> Unit): YandexDocument
-    fun cancelDocument()
 
     /** Ends the SSH session and the helper process. */
     fun close()
