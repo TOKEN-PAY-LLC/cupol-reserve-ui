@@ -189,7 +189,7 @@ fun ProfileEditor(model: ProfilesScreenModel, state: EditorState, onBack: (() ->
                             }
                         }
                         AppButton("Добавить транспорт", {
-                            model.updateDraft { it.copy(extras = it.extras + ExtraTransport(TransportType.DIRECT, priority = 50)) }
+                            model.updateDraft { it.copy(extras = it.extras + ExtraTransport(TransportType.DIRECT, priority = 110)) }
                         }, style = ButtonStyle.Secondary, leading = Icons.Rounded.Add)
                     }
                 }

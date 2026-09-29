@@ -140,7 +140,7 @@ interface NodeWizardService {
     suspend fun checkDocument(documentUrl: String)
     /** New cups.online rooms for the channel: the packed list the node and its link take. */
     suspend fun createCupsRooms(): String
-    /** The channel's `openflux://` link: [transports], then direct to host:port as the backup. */
+    /** The channel's `openflux://` link: direct to host:port first, then [transports] as fallback. */
     suspend fun shareLink(name: String, key: String, host: String, port: Int, transports: List<NodeTransport>): String
     /** The addresses [host] resolves to, to compare with the tunnel's exit. */
     suspend fun resolve(host: String): Set<String>

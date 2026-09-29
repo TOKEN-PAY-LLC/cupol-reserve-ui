@@ -39,7 +39,7 @@ data class HostKeyPrompt(val fingerprint: String, val mismatch: Boolean)
  * "Своя нода": installs a new, independent channel on the user's VDS and
  * hands back a verified profile, like the Android NodeWizardActivity. Steps:
  * SSH to the server, the channel's transports (any of a Yandex document, a
- * Mail.ru document and cups.online rooms, direct always as the backup),
+ * Mail.ru document and cups.online rooms, direct as the preferred carrier),
  * what will change on the server, install, then a real connection through
  * the new node. Running it
  * again on the same server adds another channel next to the existing ones.
@@ -83,7 +83,7 @@ class NodeWizardModel(private val container: AppContainer, private val scope: Co
     var channel by mutableStateOf<NewChannel?>(null)
         private set
     var name by mutableStateOf("")
-    /** The carriers besides direct, which every channel has as the backup. */
+    /** The carriers besides direct, which every channel prefers when available. */
     var useVolga by mutableStateOf(true)
     var useMailru by mutableStateOf(false)
     var useCups by mutableStateOf(false)
@@ -372,7 +372,7 @@ class NodeWizardModel(private val container: AppContainer, private val scope: Co
                 }
                 if (verifiedIp.isEmpty()) delay(POLL_MS)
             }
-            // Traffic may have gone through the direct backup. Give the
+            // Traffic may have gone through the direct carrier. Give the
             // primary carrier the rest of the time to come up: a Yandex node
             // may first need its own check, which the app-wide captcha dialog shows.
             primaryType?.let { busy = "Жду канал через ${it.shortLabel}…" }
