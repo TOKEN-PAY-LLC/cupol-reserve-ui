@@ -298,12 +298,13 @@ private fun SystemProxySettings(model: SettingsScreenModel) {
     }
     val platform = model.container.platform
     if (platform.fullTunnelSupported) {
-        val how = if (platform.fullTunnelAsksPassword) {
-            "Интерфейс utun забирает весь трафик, включая игры и UDP. Ядру нужен root: при каждом подключении macOS спросит пароль администратора."
-        } else {
-            "Адаптер Wintun забирает весь трафик, включая игры и UDP; системный прокси тогда не нужен. " +
-                "Нужны права администратора" + if (platform.elevated) "." else ": запустите OpenFlux от имени администратора."
-        }
+        val prompt = platform.fullTunnelPrompt
+        val how = "Весь трафик, включая игры и UDP, идёт через ноду; системный прокси тогда не нужен. Ядру нужны права администратора" +
+            when {
+                prompt != null -> ": $prompt."
+                platform.elevated -> ", у OpenFlux они есть."
+                else -> ": запустите OpenFlux от имени администратора."
+            }
         AppCard(padding = AppTheme.spacing.s) {
             SwitchRow(
                 "Весь трафик компьютера (TUN)",

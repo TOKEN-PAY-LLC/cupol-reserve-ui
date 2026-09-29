@@ -428,14 +428,14 @@ private fun DetailsColumn(model: HomeScreenModel, selected: Profile?, state: Con
                     title = if (android) "VPN: весь трафик телефона" else "Весь трафик компьютера",
                     description = when {
                         android -> "Все приложения идут через ноду. Выключите, чтобы OpenFlux работал только как прокси SOCKS5 127.0.0.1:${settings.socksPort}."
-                        container.platform.fullTunnelAsksPassword ->
-                            "Все программы, игры и UDP идут через ноду, как VPN на Android. При подключении macOS спросит пароль администратора."
+                        container.platform.fullTunnelPrompt != null ->
+                            "Все программы, игры и UDP идут через ноду, как VPN на Android; ${container.platform.fullTunnelPrompt}."
                         else -> "Все программы, игры и UDP идут через ноду, как VPN на Android. Нужны права администратора."
                     },
                     checked = settings.fullTunnel,
                     onCheckedChange = model::setFullTunnel,
                 )
-                if (settings.fullTunnel && !container.platform.elevated && !container.platform.fullTunnelAsksPassword) {
+                if (settings.fullTunnel && !container.platform.elevated && container.platform.fullTunnelPrompt == null) {
                     Banner(
                         "OpenFlux запущен без прав администратора, а они нужны этому режиму.",
                         Tone.Warning,

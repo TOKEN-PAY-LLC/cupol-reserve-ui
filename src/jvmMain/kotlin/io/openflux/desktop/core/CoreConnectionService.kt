@@ -6,6 +6,7 @@ import io.openflux.desktop.model.AppSettings
 import io.openflux.desktop.model.CaptchaPrompt
 import io.openflux.desktop.ui.BrowserPage
 import io.openflux.desktop.platform.MacElevation
+import io.openflux.desktop.platform.WindowsCoreElevation
 import io.openflux.desktop.platform.WindowsElevation
 import io.openflux.desktop.web.BrowserLog
 import io.openflux.desktop.model.ConnectionMode
@@ -88,7 +89,7 @@ class CoreConnectionService(
         val files: List<File>,
         val httpProxy: String?,
         val usesIpc: Boolean,
-        /** macOS full tunnel: the core runs as root, see [MacElevation]. */
+        /** Full tunnel from a normal app: the core runs elevated, see [MacElevation], [WindowsCoreElevation]. */
         val elevated: Elevated? = null,
         val jobs: MutableList<Job> = mutableListOf(),
     ) {
@@ -100,12 +101,15 @@ class CoreConnectionService(
         @Volatile var bannerSeen = false
         /** The IPC socket never answered; status comes from the log instead. */
         @Volatile var ipcUnavailable = false
-        /** Reads a root core's output file ([elevated]). */
-        @Volatile var logJob: Job? = null
+        /** Read an elevated core's output files ([elevated]). */
+        val logJobs: MutableList<Job> = mutableListOf()
     }
 
-    /** A core started as root: its output file and the file that stops it. */
-    private class Elevated(val log: File, val stop: File)
+    /**
+     * A core started elevated: the files its output goes to, the file that
+     * stops it, and how the launcher says the prompt was declined.
+     */
+    private class Elevated(val logs: List<File>, val stop: File, val declined: (String) -> Boolean, val declinedMessage: String)
 
     init {
         // A killed app leaves its run files behind, the key among them. One
@@ -180,17 +184,30 @@ class CoreConnectionService(
             }
             log(LogLevel.Info, "Запуск ядра: ${profile.name} (${current.mode.label})")
             var command = listOf(core.absolutePath) + launch.arguments
-            val elevated = if (current.fullTunnel && current.mode == ConnectionMode.Client && MacElevation.mac && !MacElevation.root) {
+            val elevate = current.fullTunnel && current.mode == ConnectionMode.Client &&
+                ((MacElevation.mac && !MacElevation.root) || (isWindows && !WindowsElevation.elevated))
+            val elevated = if (elevate) {
                 val stamp = System.currentTimeMillis()
-                val out = File(runtime, "core-$tag-$stamp.log").apply { writeText("") }
-                restrictToOwner(out)
-                files += out
+                fun output(suffix: String) = File(runtime, "core-$tag-$stamp$suffix").apply { writeText("") }.also {
+                    restrictToOwner(it)
+                    files += it
+                }
                 // Not among the run's files: a core that outlived its stop
                 // (the wait below ran out) must still find it.
                 val stop = File(runtime, "stop-$tag-$stamp")
-                command = MacElevation.command(command, out, stop, ProcessHandle.current().pid())
-                log(LogLevel.Info, "macOS спросит пароль администратора: ядру нужен root для интерфейса utun и маршрутов")
-                Elevated(out, stop)
+                val app = ProcessHandle.current().pid()
+                if (isWindows) {
+                    val out = output(".out.log")
+                    val err = output(".err.log")
+                    command = WindowsCoreElevation.command(command, runtime, out, err, stop, app)
+                    log(LogLevel.Info, "Windows попросит разрешение администратора: ядру нужны права для адаптера Wintun и маршрутов")
+                    Elevated(listOf(out, err), stop, WindowsCoreElevation::cancelled, "Нет разрешения администратора: без него режим «Весь трафик» не запускается")
+                } else {
+                    val out = output(".log")
+                    command = MacElevation.command(command, out, stop, app)
+                    log(LogLevel.Info, "macOS спросит пароль администратора: ядру нужен root для интерфейса utun и маршрутов")
+                    Elevated(listOf(out), stop, MacElevation::cancelled, "Пароль администратора не введён: без прав root режим «Весь трафик» не запускается")
+                }
             } else null
             val process = ProcessBuilder(command)
                 .directory(AppDirs.runtime)
@@ -201,7 +218,7 @@ class CoreConnectionService(
             _socksAddress.value = launch.socksAddress
             _state.value = ConnectionState.Connecting(profile, current.mode, System.currentTimeMillis())
             newRun.jobs += scope.launch { readOutput(newRun) }
-            if (elevated != null) newRun.logJob = scope.launch { followLog(newRun, elevated.log) }.also { newRun.jobs += it }
+            elevated?.logs?.forEach { file -> newRun.logJobs += scope.launch { followLog(newRun, file) }.also { newRun.jobs += it } }
             newRun.jobs += scope.launch { awaitExit(newRun) }
             newRun.jobs += scope.launch { readIpc(newRun, ipcSocket) }
         } catch (e: Exception) {
@@ -214,12 +231,10 @@ class CoreConnectionService(
 
     /** What the core's tun client needs, said before it fails on its own. */
     private fun checkFullTunnel(core: File) {
-        // macOS: root comes with each start (MacElevation).
+        // macOS: root comes with each start (MacElevation); Windows asks
+        // UAC for the core alone when OpenFlux is not elevated itself.
         if (MacElevation.mac) return
         check(isWindows) { "Режим «Весь трафик» пока есть только в Windows и macOS" }
-        check(WindowsElevation.elevated) {
-            "Режиму «Весь трафик» нужны права администратора: перезапустите OpenFlux от имени администратора (кнопка на главной)"
-        }
         check(File(core.parentFile, "wintun.dll").isFile) {
             "Рядом с ядром нет wintun.dll (${core.parentFile}): он нужен для режима «Весь трафик», см. scripts/build-core.sh"
         }
@@ -230,9 +245,10 @@ class CoreConnectionService(
             for (raw in lines) {
                 val line = raw.trimEnd()
                 if (line.isEmpty()) continue
-                // osascript's own words: the password dialog was closed.
-                if (run.elevated != null && MacElevation.cancelled(line)) {
-                    run.lastProblem = "Пароль администратора не введён: без прав root режим «Весь трафик» не запускается"
+                // The launcher's own words: the password or UAC prompt was declined.
+                val elevated = run.elevated
+                if (elevated != null && elevated.declined(line)) {
+                    run.lastProblem = elevated.declinedMessage
                     continue
                 }
                 onCoreLine(run, line)
@@ -240,7 +256,7 @@ class CoreConnectionService(
         }
     }
 
-    /** A root core writes to a file (the app cannot read its pipe); follows it until the core ends. */
+    /** An elevated core writes to files (the app cannot read its pipe); follows one until the core ends. */
     private fun followLog(run: Run, file: File) {
         RandomAccessFile(file, "r").use { input ->
             val pending = java.io.ByteArrayOutputStream()
@@ -339,7 +355,7 @@ class CoreConnectionService(
     private suspend fun awaitExit(run: Run) {
         val code = run.process.waitFor()
         // The last lines of a root core's file, read before it is deleted.
-        run.logJob?.join()
+        run.logJobs.forEach { it.join() }
         cleanup(run)
         if (run.stopping) return
         val message = run.lastProblem ?: "Ядро остановилось (код $code)"
@@ -405,7 +421,7 @@ class CoreConnectionService(
         if (elevated != null && run.process.isAlive) {
             runCatching { elevated.stop.createNewFile() }
             if (!run.process.waitFor(ROOT_STOP_WAIT_S, TimeUnit.SECONDS)) {
-                log(LogLevel.Warning, "Ядро с правами root не остановилось за $ROOT_STOP_WAIT_S с; оно остановится, когда закроется OpenFlux")
+                log(LogLevel.Warning, "Ядро с правами администратора не остановилось за $ROOT_STOP_WAIT_S с; оно остановится, когда закроется OpenFlux")
             }
         }
         killTree(run.process)

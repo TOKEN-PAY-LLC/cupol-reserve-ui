@@ -46,7 +46,11 @@ class JvmPlatformServices(
     override val systemProxySupported: Boolean = os.contains("win")
     override val fullTunnelSupported: Boolean = os.contains("win") || MacElevation.mac
     override val elevated: Boolean get() = if (MacElevation.mac) MacElevation.root else WindowsElevation.elevated
-    override val fullTunnelAsksPassword: Boolean get() = MacElevation.mac && !MacElevation.root
+    override val fullTunnelPrompt: String? get() = when {
+        MacElevation.mac && !MacElevation.root -> "при подключении macOS спросит пароль администратора"
+        WindowsCoreElevation.windows && !WindowsElevation.elevated -> "при подключении Windows попросит разрешение администратора"
+        else -> null
+    }
 
     override fun restartElevated(): Boolean {
         if (!WindowsElevation.restartElevated(RELAUNCHED_ARG)) return false

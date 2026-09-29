@@ -76,11 +76,11 @@ interface PlatformServices {
     /** Whether OpenFlux runs with administrator rights, which the full tunnel needs. */
     val elevated: Boolean
     /**
-     * macOS: the full tunnel gets root for the core on each connect (the
-     * system asks for an administrator's password), OpenFlux itself need
-     * not run elevated.
+     * How the full tunnel gets administrator rights for the core on each
+     * connect, in the user's words ("macOS спросит пароль администратора"),
+     * when OpenFlux itself is not elevated; null when nothing is asked.
      */
-    val fullTunnelAsksPassword: Boolean get() = false
+    val fullTunnelPrompt: String? get() = null
 
     /** Starts OpenFlux again as administrator (UAC) and exits this copy; false if that did not happen. */
     fun restartElevated(): Boolean
