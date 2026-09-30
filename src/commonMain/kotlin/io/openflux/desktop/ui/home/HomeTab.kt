@@ -52,6 +52,7 @@ import cafe.adriel.voyager.navigator.tab.TabOptions
 import io.openflux.desktop.model.ConnectionMode
 import io.openflux.desktop.model.ConnectionState
 import io.openflux.desktop.model.ExitAddress
+import io.openflux.desktop.model.HiddifyBridge
 import io.openflux.desktop.model.Profile
 import io.openflux.desktop.model.TransportType
 import io.openflux.desktop.model.isActive
@@ -394,6 +395,21 @@ private fun DetailsColumn(model: HomeScreenModel, selected: Profile?, state: Con
                         model.copy(socksAddr)
                         toaster.show("Адрес SOCKS5 скопирован")
                     }, icon = Icons.Rounded.ContentCopy)
+                }
+                if (android) {
+                    HorizontalRule()
+                    KeyValueRow("Hiddify", "Локальный SOCKS5") {
+                        AppIconButton("Скопировать профиль Hiddify", {
+                            model.copy(HiddifyBridge.profile(settings.socksPort))
+                            toaster.show("Профиль Hiddify скопирован")
+                        }, icon = Icons.Rounded.ContentCopy, enabled = state is ConnectionState.Connected)
+                    }
+                    Text(
+                        "В Hiddify: добавить профиль из буфера и исключить CUPOL Reserve из его VPN. Оставьте прокси CUPOL Reserve подключённым.",
+                        style = AppTheme.typography.caption,
+                        color = AppTheme.colors.textSecondary,
+                        modifier = Modifier.padding(horizontal = AppTheme.spacing.l, vertical = AppTheme.spacing.s),
+                    )
                 }
                 if (!android) {
                     HorizontalRule()
