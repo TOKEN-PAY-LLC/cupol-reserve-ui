@@ -4,7 +4,7 @@ package io.openflux.desktop.model
 object HiddifyBridge {
     fun profile(socksPort: Int): String {
         require(socksPort in 1..65535) { "Invalid SOCKS5 port" }
-        return """{"outbounds":[{"type":"socks","tag":"CUPOL Reserve · local","server":"127.0.0.1","server_port":$socksPort,"version":"5"}]}"""
+        return """{"outbounds":[{"type":"socks","tag":"Обход","server":"127.0.0.1","server_port":$socksPort,"version":"5"}]}"""
     }
 
     /** Import as a separate SOCKS node in Streisand while on the same LAN. */
@@ -14,7 +14,7 @@ object HiddifyBridge {
             "Enter the phone's LAN IPv4 address"
         }
         require(CREDENTIAL.matches(lanPassword)) { "Invalid SOCKS5 credential" }
-        return "socks://cupol:$lanPassword@$host:$socksPort#CUPOL%20Reserve%20LAN"
+        return "socks://cupol:$lanPassword@$host:$socksPort#%D0%9E%D0%B1%D1%85%D0%BE%D0%B4"
     }
 
     private val CREDENTIAL = Regex("[0-9a-fA-F]{64}")
