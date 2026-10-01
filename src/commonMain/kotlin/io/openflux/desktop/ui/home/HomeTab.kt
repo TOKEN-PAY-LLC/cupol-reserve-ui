@@ -410,6 +410,32 @@ private fun DetailsColumn(model: HomeScreenModel, selected: Profile?, state: Con
                         color = AppTheme.colors.textSecondary,
                         modifier = Modifier.padding(horizontal = AppTheme.spacing.l, vertical = AppTheme.spacing.s),
                     )
+                    if (settings.lanProxyEnabled) {
+                        val host = settings.lanProxyHost.ifBlank { container.platform.localLanAddress().orEmpty() }
+                        val streisandLink = runCatching {
+                            HiddifyBridge.streisandLink(host, settings.socksPort, settings.lanProxyPassword)
+                        }.getOrNull()
+                        HorizontalRule()
+                        KeyValueRow("Streisand", if (host.isEmpty()) "Укажите IP телефона в настройках" else "$host:${settings.socksPort}") {
+                            AppIconButton("Скопировать профиль Streisand", {
+                                if (streisandLink != null) {
+                                    model.copy(streisandLink)
+                                    toaster.show("Профиль Streisand скопирован")
+                                }
+                            }, icon = Icons.Rounded.ContentCopy,
+                                enabled = state is ConnectionState.Connected && streisandLink != null)
+                        }
+                        if (state is ConnectionState.Connected && streisandLink != null) {
+                            QrCode(container.platform.qrMatrix(streisandLink), 160.dp,
+                                Modifier.padding(horizontal = AppTheme.spacing.l, vertical = AppTheme.spacing.s))
+                        }
+                        Text(
+                            "iPhone подключите к этой же сети или точке доступа телефона, затем добавьте SOCKS5 в Streisand по QR. Держите CUPOL Reserve подключённым.",
+                            style = AppTheme.typography.caption,
+                            color = AppTheme.colors.textSecondary,
+                            modifier = Modifier.padding(horizontal = AppTheme.spacing.l, vertical = AppTheme.spacing.s),
+                        )
+                    }
                 }
                 if (!android) {
                     HorizontalRule()

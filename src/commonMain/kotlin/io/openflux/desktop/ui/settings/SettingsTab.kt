@@ -241,13 +241,48 @@ private fun ConnectionSettings(model: SettingsScreenModel) {
         Spacer(Modifier.height(AppTheme.spacing.s))
         Text(
             if (model.android) {
-                "Прокси работает, когда VPN выключен, и слушает только этот телефон. Укажите его в приложениях, которые умеют работать через прокси (Telegram, браузеры)."
+                "Прокси работает при выключенном VPN. Без раздачи он доступен только на этом телефоне."
             } else {
                 "Прокси слушает только этот компьютер. Укажите его в браузере или программе либо включите системный прокси Windows."
             },
             style = AppTheme.typography.bodySmall,
             color = AppTheme.colors.textSecondary,
         )
+        if (model.android) {
+            Spacer(Modifier.height(AppTheme.spacing.m))
+            SwitchRow(
+                "Раздавать прокси по Wi-Fi",
+                "Для Streisand на другом устройстве в той же сети или на точке доступа этого телефона. Включение выключит VPN CUPOL Reserve. Доступ защищён паролем.",
+                settings.lanProxyEnabled,
+                { enabled ->
+                    model.update {
+                        it.copy(
+                            lanProxyEnabled = enabled,
+                            lanProxyPassword = if (enabled && it.lanProxyPassword.isEmpty()) model.container.platform.newSecret() else it.lanProxyPassword,
+                            fullTunnel = if (enabled) false else it.fullTunnel,
+                        )
+                    }
+                    val state = model.container.connection.state.value
+                    if (state.isActive) state.profile?.let(model.container.connection::connect)
+                },
+            )
+            if (settings.lanProxyEnabled) {
+                Spacer(Modifier.height(AppTheme.spacing.s))
+                AppTextField(
+                    value = settings.lanProxyHost,
+                    onValueChange = { value -> model.update { it.copy(lanProxyHost = value.trim()) } },
+                    label = "Адрес телефона в сети",
+                    placeholder = model.container.platform.localLanAddress() ?: "192.168.43.1",
+                    helper = "Оставьте пустым для автоматического определения. Если iPhone не подключается, укажите IP точки доступа вручную.",
+                    modifier = Modifier.fillUpTo(320.dp),
+                )
+                TextAction("Сменить пароль раздачи", {
+                    model.update { it.copy(lanProxyPassword = model.container.platform.newSecret()) }
+                    val state = model.container.connection.state.value
+                    if (state.isActive) state.profile?.let(model.container.connection::connect)
+                })
+            }
+        }
     }
     AppCard(padding = AppTheme.spacing.s) {
         SwitchRow(
@@ -358,7 +393,7 @@ private fun VpnSettings(model: SettingsScreenModel, settings: AppSettings) {
             "Все приложения, кроме самого CUPOL Reserve, идут через ноду. Android спросит разрешение при первом подключении.",
             settings.fullTunnel,
             { v ->
-                model.update { it.copy(fullTunnel = v) }
+                model.update { it.copy(fullTunnel = v, lanProxyEnabled = if (v) false else it.lanProxyEnabled) }
                 val state = model.container.connection.state.value
                 if (state.isActive) state.profile?.let(model.container.connection::connect)
             },

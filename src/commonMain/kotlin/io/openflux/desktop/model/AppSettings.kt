@@ -32,6 +32,12 @@ data class AppSettings(
     val theme: ThemeMode = ThemeMode.System,
     val mode: ConnectionMode = ConnectionMode.Client,
     val socksPort: Int = 1080,
+    /** Android only: expose the proxy to devices on the same Wi-Fi/hotspot. */
+    val lanProxyEnabled: Boolean = false,
+    /** Private SOCKS5 credential generated when LAN sharing is enabled. */
+    val lanProxyPassword: String = "",
+    /** Optional hotspot address override for the profile shown to another device. */
+    val lanProxyHost: String = "",
     /** Point Windows (browsers and most programs) at the core's HTTP proxy while connected. */
     val systemProxy: Boolean = true,
     /**

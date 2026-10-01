@@ -81,6 +81,8 @@ interface PlatformServices {
      * when OpenFlux itself is not elevated; null when nothing is asked.
      */
     val fullTunnelPrompt: String? get() = null
+    /** Address reachable by a peer on this device's Wi-Fi or hotspot. */
+    fun localLanAddress(): String? = null
 
     /** Starts OpenFlux again as administrator (UAC) and exits this copy; false if that did not happen. */
     fun restartElevated(): Boolean
