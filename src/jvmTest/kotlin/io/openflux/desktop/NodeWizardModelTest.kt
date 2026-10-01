@@ -272,9 +272,13 @@ class NodeWizardModelTest {
             listOf("of-test12", "mailru=https://cloud.mail.ru/public/DEmN/ETbZW2MPY cupsonline=WyJyb29tLTEiXQ", "31337", "autoUpdate=true", "p"),
             env.node.applied,
         )
-        assertTrue(wizard.primaryUp)
+        // The fallback is usable, but a live Mail.ru carrier is not a live
+        // direct carrier. Keep the verified profile without claiming that
+        // the preferred path has recovered.
+        assertFalse(wizard.primaryUp)
+        assertEquals(serverIp, wizard.verifiedIp)
         val saved = wizard.save()!!
-        assertEquals(listOf(TransportType.MAILRU, TransportType.CUPSONLINE, TransportType.DIRECT), saved.carriers.map { it.type })
+        assertEquals(listOf(TransportType.MAILRU, TransportType.DIRECT, TransportType.CUPSONLINE), saved.carriers.map { it.type })
         assertEquals(1, env.node.roomsCreated)
     }
 
