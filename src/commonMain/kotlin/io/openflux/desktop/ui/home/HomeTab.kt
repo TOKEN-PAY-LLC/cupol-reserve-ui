@@ -426,11 +426,20 @@ private fun DetailsColumn(model: HomeScreenModel, selected: Profile?, state: Con
                                 enabled = state is ConnectionState.Connected && streisandLink != null)
                         }
                         if (state is ConnectionState.Connected && streisandLink != null) {
+                            HorizontalRule()
+                            KeyValueRow("Логин SOCKS5", "cupol")
+                            HorizontalRule()
+                            KeyValueRow("Пароль SOCKS5", "Скрыт") {
+                                AppIconButton("Скопировать пароль для Streisand", {
+                                    model.copy(settings.lanProxyPassword)
+                                    toaster.show("Пароль SOCKS5 скопирован")
+                                }, icon = Icons.Rounded.ContentCopy)
+                            }
                             QrCode(container.platform.qrMatrix(streisandLink), 160.dp,
                                 Modifier.padding(horizontal = AppTheme.spacing.l, vertical = AppTheme.spacing.s))
                         }
                         Text(
-                            "iPhone подключите к этой же сети или точке доступа телефона, затем добавьте SOCKS5 в Streisand по QR. Держите CUPOL Reserve подключённым.",
+                            "Подключите iPhone к этой же сети или точке доступа телефона. Импортируйте QR в Streisand либо добавьте SOCKS5 вручную. CUPOL Reserve должен оставаться подключённым.",
                             style = AppTheme.typography.caption,
                             color = AppTheme.colors.textSecondary,
                             modifier = Modifier.padding(horizontal = AppTheme.spacing.l, vertical = AppTheme.spacing.s),
