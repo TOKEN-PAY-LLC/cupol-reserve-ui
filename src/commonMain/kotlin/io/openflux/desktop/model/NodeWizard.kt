@@ -95,7 +95,7 @@ object NodeDocuments {
     private val DOC_URL = Regex("""^https://((docs|disk)\.yandex\.(ru|com|by|kz|uz)|(docs|disk)\.360\.yandex\.com)/edit/d/[A-Za-z0-9_-]{16,200}$""")
 
     /** The document link without query or fragment, null if it is not a Yandex document. */
-    fun clean(url: String): String? = url.trim().replace(Regex("[?#].*$"), "").takeIf(DOC_URL::matches)
+    fun clean(url: String): String? = url.trim().replace(Regex("[?#].*$"), "").trimEnd('/').takeIf(DOC_URL::matches)
 }
 
 object NodeServers {
