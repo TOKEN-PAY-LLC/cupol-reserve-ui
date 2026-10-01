@@ -41,10 +41,30 @@ data class Profile(
     val extras: List<ExtraTransport> = emptyList(),
     val source: ProfileSource = ProfileSource.Manual,
     val createdAt: Long = 0,
+    val reserveRoute: ReserveRoute = ReserveRoute.Auto,
 ) {
-    /** Every carrier of the profile, main first. */
-    val carriers: List<ExtraTransport>
+    /** Saved carriers stay intact when a client temporarily selects Yandex only. */
+    val configuredCarriers: List<ExtraTransport>
         get() = listOf(ExtraTransport(transport, value, uid, priority)) + if (session) extras else emptyList()
+
+    /** Carriers this client is allowed to use, main first. */
+    val carriers: List<ExtraTransport>
+        get() = if (reserveRoute == ReserveRoute.Yandex) configuredCarriers.filter { it.type.isYandexCarrier }
+            else configuredCarriers
+
+    val supportsReserveRoutes: Boolean
+        get() = session && configuredCarriers.any { it.type.isYandexCarrier }
+
+    /** Preserve the original KDF salt when filtering out the carrier that named it. */
+    val effectiveSessionContext: String
+        get() = if (context.isNotBlank() || reserveRoute == ReserveRoute.Auto) context else {
+            configuredCarriers.filter {
+                it.type.kind == ValueKind.DocumentUrl && it.type != TransportType.CUPSONLINE &&
+                    it.value.trim().isNotEmpty() && it.value.trim() != "http://#"
+            }.maxByOrNull { it.priority }?.value?.trim() ?: "http://#"
+        }
+
+    fun forExit(): Profile = copy(reserveRoute = ReserveRoute.Auto)
 
     val summary: String
         get() = if (session) carriers.joinToString(" + ") { it.type.shortLabel } else transport.label
@@ -52,6 +72,9 @@ data class Profile(
     /** Problems that keep the profile from connecting, empty when it can. */
     fun problems(): List<String> = buildList {
         if (name.isBlank()) add("Укажите название")
+        if (reserveRoute == ReserveRoute.Yandex && !supportsReserveRoutes) {
+            add("Для режима «Обход · Яндекс» нужен Session-профиль с каналом Яндекса")
+        }
         carriers.forEachIndexed { index, carrier ->
             val where = if (index == 0) "Основной транспорт" else "Транспорт ${index + 1}"
             carrierProblem(carrier)?.let { add("$where: $it") }
@@ -83,7 +106,8 @@ data class Profile(
 
     /** The link another device scans; null with why when it cannot be shared. */
     fun toShare(): Result<ShareConfig> = runCatching {
-        require(transport.shareable) { "${transport.label} нельзя передать ссылкой: токен привязан к аккаунту" }
+        require(reserveRoute != ReserveRoute.Yandex || supportsReserveRoutes) { "В профиле нет канала Яндекса" }
+        require(transport.shareable || reserveRoute == ReserveRoute.Yandex) { "${transport.label} нельзя передать ссылкой: токен привязан к аккаунту" }
         val transports = carriers.filter { it.type.shareable }.map {
             ShareTransport(
                 type = it.type.cliName,
@@ -99,7 +123,7 @@ data class Profile(
             secret = secret,
             // An imported context travels on; otherwise the core names the
             // one both peers derive when it makes the link.
-            context = context,
+            context = effectiveSessionContext,
             transports = transports,
         )
     }

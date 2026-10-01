@@ -2,7 +2,9 @@ package io.openflux.desktop.ui.home
 
 import cafe.adriel.voyager.core.model.ScreenModel
 import io.openflux.desktop.model.ConnectionMode
+import io.openflux.desktop.model.ConnectionState
 import io.openflux.desktop.model.Profile
+import io.openflux.desktop.model.ReserveRoute
 import io.openflux.desktop.model.isActive
 import io.openflux.desktop.model.profile
 import io.openflux.desktop.service.AppContainer
@@ -32,6 +34,11 @@ class HomeScreenModel(private val container: AppContainer) : ScreenModel {
     }
 
     fun setMode(mode: ConnectionMode) = settings.update { it.copy(mode = mode) }
+
+    fun setReserveRoute(profile: Profile, route: ReserveRoute) {
+        if (connection.state.value.isActive || connection.state.value is ConnectionState.Disconnecting || !profile.supportsReserveRoutes) return
+        profiles.upsert(profile.copy(reserveRoute = route))
+    }
 
     fun setSystemProxy(enabled: Boolean) = settings.update { it.copy(systemProxy = enabled) }
 

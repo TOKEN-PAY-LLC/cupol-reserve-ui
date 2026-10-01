@@ -54,6 +54,7 @@ import io.openflux.desktop.model.ConnectionState
 import io.openflux.desktop.model.ExitAddress
 import io.openflux.desktop.model.HiddifyBridge
 import io.openflux.desktop.model.Profile
+import io.openflux.desktop.model.ReserveRoute
 import io.openflux.desktop.model.TransportType
 import io.openflux.desktop.model.isActive
 import io.openflux.desktop.service.AppContainer
@@ -246,6 +247,23 @@ private fun ControlPanel(
         SectionLabel("Профиль")
         Spacer(Modifier.height(AppTheme.spacing.s))
         ProfilePicker(profiles, selected, onSelect = model::select)
+        if (selected?.supportsReserveRoutes == true && mode == ConnectionMode.Client) {
+            Spacer(Modifier.height(AppTheme.spacing.l))
+            Segmented(
+                options = ReserveRoute.entries,
+                selected = selected.reserveRoute,
+                label = { it.label(platform.languageCode) },
+                onSelect = { model.setReserveRoute(selected, it) },
+                enabled = !state.isActive && state !is ConnectionState.Disconnecting,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(AppTheme.spacing.xs))
+            Text(
+                selected.reserveRoute.description(platform.languageCode),
+                style = AppTheme.typography.caption,
+                color = AppTheme.colors.textSecondary,
+            )
+        }
         Spacer(Modifier.height(AppTheme.spacing.l))
         SectionLabel("Режим")
         Spacer(Modifier.height(AppTheme.spacing.s))
@@ -400,7 +418,7 @@ private fun DetailsColumn(model: HomeScreenModel, selected: Profile?, state: Con
                     HorizontalRule()
                     KeyValueRow("Hiddify", "Локальный SOCKS5") {
                         AppIconButton("Скопировать профиль Hiddify", {
-                            model.copy(HiddifyBridge.profile(settings.socksPort))
+                            model.copy(HiddifyBridge.profile(settings.socksPort, profile.reserveRoute.label(container.platform.languageCode)))
                             toaster.show("Профиль Hiddify скопирован")
                         }, icon = Icons.Rounded.ContentCopy, enabled = state is ConnectionState.Connected)
                     }
@@ -413,7 +431,7 @@ private fun DetailsColumn(model: HomeScreenModel, selected: Profile?, state: Con
                     if (settings.lanProxyEnabled) {
                         val host = settings.lanProxyHost.ifBlank { container.platform.localLanAddress().orEmpty() }
                         val streisandLink = runCatching {
-                            HiddifyBridge.streisandLink(host, settings.socksPort, settings.lanProxyPassword)
+                            HiddifyBridge.streisandLink(host, settings.socksPort, settings.lanProxyPassword, profile.reserveRoute.label(container.platform.languageCode))
                         }.getOrNull()
                         HorizontalRule()
                         KeyValueRow("Streisand", if (host.isEmpty()) "Укажите IP телефона в настройках" else "$host:${settings.socksPort}") {

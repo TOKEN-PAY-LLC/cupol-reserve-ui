@@ -38,6 +38,7 @@ class JvmPlatformServices(
     override val appVersion: String,
     private val coreVersionProvider: () -> String,
 ) : PlatformServices {
+    override val languageCode: String get() = java.util.Locale.getDefault().language
     private val os = System.getProperty("os.name").lowercase()
     private val random = SecureRandom()
 

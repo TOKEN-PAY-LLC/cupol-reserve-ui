@@ -27,12 +27,13 @@ object CoreConfig {
     const val LOOPBACK = "127.0.0.1"
 
     fun build(profile: Profile, settings: AppSettings, paths: CorePaths): CoreLaunch {
-        val problems = profile.problems()
-        require(problems.isEmpty()) { problems.first() }
         val exit = settings.mode == ConnectionMode.Exit
+        val runProfile = if (exit) profile.forExit() else profile
+        val problems = runProfile.problems()
+        require(problems.isEmpty()) { problems.first() }
         val socks = "$LOOPBACK:${settings.socksPort}"
         val http = "$LOOPBACK:${settings.socksPort + 1}"
-        return if (profile.session) session(profile, settings, paths, exit, socks, http) else classic(profile, settings, paths, exit, socks, http)
+        return if (runProfile.session) session(runProfile, settings, paths, exit, socks, http) else classic(runProfile, settings, paths, exit, socks, http)
     }
 
     private fun session(profile: Profile, settings: AppSettings, paths: CorePaths, exit: Boolean, socks: String, http: String): CoreLaunch {
@@ -84,7 +85,7 @@ object CoreConfig {
             // An imported context goes on the command line (.conf values end
             // at '#'); without one the core derives it by its rule, the one
             // the exit uses too.
-            if (profile.context.isNotBlank()) add("--session-context=${profile.context}")
+            if (profile.effectiveSessionContext.isNotBlank()) add("--session-context=${profile.effectiveSessionContext}")
             if (paths.ipcSocket != null) add("--ipc-socket=${paths.ipcSocket}")
             if (exit) {
                 add("--share")

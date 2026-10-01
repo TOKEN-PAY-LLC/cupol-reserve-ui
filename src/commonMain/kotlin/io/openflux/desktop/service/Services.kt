@@ -65,6 +65,7 @@ enum class PlatformKind { Desktop, Android }
 /** Platform facilities the UI needs without touching the platform itself. */
 interface PlatformServices {
     val kind: PlatformKind get() = PlatformKind.Desktop
+    val languageCode: String get() = "ru"
     val appVersion: String
     val coreVersion: String
     /** Where this app's own releases are published, e.g. "p1neappleXpress/OpenFluxDesktop". */
