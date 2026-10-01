@@ -269,14 +269,22 @@ private fun ConnectionSettings(model: SettingsScreenModel) {
             )
             if (settings.lanProxyEnabled) {
                 Spacer(Modifier.height(AppTheme.spacing.s))
+                var lanHostDraft by remember(settings.lanProxyHost) { mutableStateOf(settings.lanProxyHost) }
                 AppTextField(
-                    value = settings.lanProxyHost,
-                    onValueChange = { value -> model.update { it.copy(lanProxyHost = value.trim()) } },
+                    value = lanHostDraft,
+                    onValueChange = { value -> lanHostDraft = value.trim() },
                     label = "Адрес телефона в сети",
                     placeholder = model.container.platform.localLanAddress() ?: "192.168.43.1",
                     helper = "Оставьте пустым для автоматического определения. Если iPhone не подключается, укажите IP точки доступа вручную.",
                     modifier = Modifier.fillUpTo(320.dp),
                 )
+                if (lanHostDraft != settings.lanProxyHost) {
+                    TextAction("Применить адрес", {
+                        model.update { it.copy(lanProxyHost = lanHostDraft) }
+                        val state = model.container.connection.state.value
+                        if (state.isActive) state.profile?.let(model.container.connection::connect)
+                    })
+                }
                 TextAction("Сменить пароль раздачи", {
                     model.update { it.copy(lanProxyPassword = model.container.platform.newSecret()) }
                     val state = model.container.connection.state.value
